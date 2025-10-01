@@ -18,9 +18,12 @@ None required - API keys are embedded in the server code.
 ## Endpoints
 
 - `GET /` - Health check
-- `GET /api/erbil?endpoint=...&from=...&to=...` - Proxy for Erbil API
-- `GET /api/duhok?endpoint=...&from=...&to=...` - Proxy for Duhok API
-- `GET /api/bahrka?endpoint=...&from=...&to=...` - Proxy for Bahrka API
+- `GET /api/erbil?endpoint=...&from=...&to=...` - Proxy for Erbil API (TopCare)
+- `GET /api/duhok?endpoint=...&from=...&to=...` - Proxy for Duhok API (TopCare)
+- `GET /api/bahrka?endpoint=...&from=...&to=...` - Proxy for Bahrka API (TopCare)
+- `GET /erbil-avenue/dashboard` - Supabase `v_dashboard` dataset for Erbil Avenue
+- `GET /erbil-avenue/history` - Supabase `v_dashboard_history` dataset for Erbil Avenue
+- `GET /erbil-avenue/expected-rent` - Supabase `v_monthly_rent_breakdown` dataset for Erbil Avenue
 
 ## Local Development
 

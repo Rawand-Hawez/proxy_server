@@ -38,6 +38,71 @@ const TOPCARE_APIS = {
   }
 };
 
+const ERBIL_AVENUE_API = {
+  baseUrl: 'https://easupabase.krdholding.dev/rest/v1',
+  apiKey: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc1NTk0NTEyMCwiZXhwIjo0OTExNjE4NzIwLCJyb2xlIjoiYW5vbiJ9.0NKTsplZZXrOF3l7sXHCS07TsMVsIVczMrkJmvuEspw',
+  endpoints: {
+    dashboard: {
+      path: '/v_dashboard',
+      defaultParams: { select: '*' }
+    },
+    history: {
+      path: '/v_dashboard_history',
+      defaultParams: { select: '*' }
+    },
+    'expected-rent': {
+      path: '/v_monthly_rent_breakdown',
+      defaultParams: { select: '*' }
+    }
+  }
+};
+
+app.get('/erbil-avenue/:resource', async (req, res) => {
+  const { resource } = req.params;
+  const endpoint = ERBIL_AVENUE_API.endpoints[resource];
+
+  if (!endpoint) {
+    return res.status(404).json({ error: 'Resource not found' });
+  }
+
+  try {
+    const queryParams = new URLSearchParams({
+      ...endpoint.defaultParams,
+      ...req.query
+    });
+
+    const url = `${ERBIL_AVENUE_API.baseUrl}${endpoint.path}?${queryParams.toString()}`;
+
+    console.log(`[${new Date().toISOString()}] Proxying Erbil Avenue request to: ${url}`);
+
+    const response = await axios.get(url, {
+      headers: {
+        apikey: ERBIL_AVENUE_API.apiKey,
+        Authorization: `Bearer ${ERBIL_AVENUE_API.apiKey}`
+      },
+      timeout: 30000
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error(`Error proxying Erbil Avenue resource (${resource}):`, error.message);
+
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else if (error.request) {
+      res.status(504).json({
+        error: 'Gateway timeout - no response from Erbil Avenue API',
+        details: error.message
+      });
+    } else {
+      res.status(500).json({
+        error: 'Internal server error',
+        details: error.message
+      });
+    }
+  }
+});
+
 // Generic proxy endpoint - catch all paths after location
 app.get('/api/:location/*', async (req, res) => {
   const { location } = req.params;
