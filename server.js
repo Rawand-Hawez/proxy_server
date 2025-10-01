@@ -38,8 +38,8 @@ const TOPCARE_APIS = {
   }
 };
 
-// Generic proxy endpoint
-app.get('/api/:location', async (req, res) => {
+// Generic proxy endpoint - catch all paths after location
+app.get('/api/:location/*', async (req, res) => {
   const { location } = req.params;
   const config = TOPCARE_APIS[location];
 
@@ -48,9 +48,12 @@ app.get('/api/:location', async (req, res) => {
   }
 
   try {
-    // Build the full URL with query parameters
+    // Extract the endpoint path after /api/:location
+    const endpoint = req.params[0] ? `/${req.params[0]}` : '';
+
+    // Build the full URL with endpoint and query parameters
     const queryParams = new URLSearchParams(req.query).toString();
-    const fullUrl = `${config.url}${queryParams ? '?' + queryParams : ''}`;
+    const fullUrl = `${config.url}${endpoint}${queryParams ? '?' + queryParams : ''}`;
 
     console.log(`[${new Date().toISOString()}] Proxying request to: ${fullUrl}`);
 
@@ -78,6 +81,48 @@ app.get('/api/:location', async (req, res) => {
       });
     } else {
       // Something else happened
+      res.status(500).json({
+        error: 'Internal server error',
+        details: error.message
+      });
+    }
+  }
+});
+
+// Fallback for requests without additional path
+app.get('/api/:location', async (req, res) => {
+  const { location } = req.params;
+  const config = TOPCARE_APIS[location];
+
+  if (!config) {
+    return res.status(404).json({ error: 'Location not found' });
+  }
+
+  try {
+    const queryParams = new URLSearchParams(req.query).toString();
+    const fullUrl = `${config.url}${queryParams ? '?' + queryParams : ''}`;
+
+    console.log(`[${new Date().toISOString()}] Proxying request to: ${fullUrl}`);
+
+    const response = await axios.get(fullUrl, {
+      headers: {
+        'X-API-Key': config.apiKey
+      },
+      timeout: 30000
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error(`Error proxying request for ${location}:`, error.message);
+
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else if (error.request) {
+      res.status(504).json({
+        error: 'Gateway timeout - no response from API server',
+        details: error.message
+      });
+    } else {
       res.status(500).json({
         error: 'Internal server error',
         details: error.message
