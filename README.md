@@ -13,7 +13,16 @@ A CORS proxy server to handle HTTP API requests for the dashboard when hosted on
 
 ## Environment Variables
 
-None required - API keys are embedded in the server code.
+Create a `.env` file in the project root for Odoo ERP integration (optional):
+
+```env
+ODOO_URL=https://your-odoo-instance.odoo.com
+ODOO_DB=your_database_name
+ODOO_USER=your_email@example.com
+ODOO_PASSWORD=your_password_or_api_key
+```
+
+**Note:** TopCare and Erbil Avenue API keys are embedded in the server code. Odoo credentials are optional - if not provided, Odoo endpoints will be disabled.
 
 ## Endpoints
 
@@ -208,6 +217,233 @@ fetch('https://your-proxy-domain.com/extract/date-range?location=erbil-avenue&re
 - `start_date` must be before or equal to `end_date`
 - Invalid dates will return a 400 error
 
+### Odoo ERP Integration
+
+The proxy server includes comprehensive Odoo ERP integration using XML-RPC API. All Odoo endpoints support date range filtering (monthly, quarterly, and custom date ranges).
+
+#### Odoo Partners
+`GET /odoo/partners`
+
+Fetches customer partners from Odoo.
+
+**Query Parameters:**
+- `limit` (optional): Number of records to return (default: 100)
+
+**Usage Example:**
+```javascript
+fetch('https://your-proxy-domain.com/odoo/partners?limit=50')
+```
+
+#### Odoo Sale Orders
+`GET /odoo/sale_orders`
+
+Fetches sale orders with optional date filtering.
+
+**Query Parameters:**
+- `limit` (optional): Number of records (default: 100)
+- Date range options (choose one):
+  - `year` & `month`: Monthly filter
+  - `year` & `quarter`: Quarterly filter (1-4)
+  - `start_date` & `end_date`: Custom date range (YYYY-MM-DD)
+
+**Usage Examples:**
+```javascript
+// Get all sale orders
+fetch('https://your-proxy-domain.com/odoo/sale_orders')
+
+// Get sale orders for November 2025
+fetch('https://your-proxy-domain.com/odoo/sale_orders?year=2025&month=11')
+
+// Get sale orders for Q4 2025
+fetch('https://your-proxy-domain.com/odoo/sale_orders?year=2025&quarter=4')
+
+// Get sale orders for custom date range
+fetch('https://your-proxy-domain.com/odoo/sale_orders?start_date=2025-01-01&end_date=2025-01-31')
+```
+
+#### Odoo Invoices
+`GET /odoo/invoices`
+
+Fetches outgoing invoices with optional date filtering.
+
+**Query Parameters:**
+- `limit` (optional): Number of records (default: 100)
+- Date range options: Same as sale orders
+
+**Usage Examples:**
+```javascript
+// Get invoices for December 2025
+fetch('https://your-proxy-domain.com/odoo/invoices?year=2025&month=12')
+
+// Get invoices for Q1 2025
+fetch('https://your-proxy-domain.com/odoo/invoices?year=2025&quarter=1')
+```
+
+#### Odoo POS Orders
+`GET /odoo/pos_orders`
+
+Fetches Point of Sale orders with optional date filtering.
+
+**Query Parameters:**
+- `limit` (optional): Number of records (default: 100)
+- Date range options: Same as sale orders
+
+**Usage Examples:**
+```javascript
+// Get POS orders for today
+const today = new Date().toISOString().split('T')[0];
+fetch(`https://your-proxy-domain.com/odoo/pos_orders?start_date=${today}&end_date=${today}`)
+
+// Get POS orders for November 2025
+fetch('https://your-proxy-domain.com/odoo/pos_orders?year=2025&month=11')
+```
+
+#### Odoo POS Payments
+`GET /odoo/pos_payments`
+
+Fetches POS payment records with optional date filtering.
+
+**Query Parameters:**
+- `limit` (optional): Number of records (default: 100)
+- Date range options: Same as sale orders
+
+#### Odoo POS Summary
+`GET /odoo/pos_summary`
+
+Returns aggregated POS metrics (total orders, revenue, average order value) with optional date filtering.
+
+**Query Parameters:**
+- Date range options: Same as sale orders
+
+**Usage Example:**
+```javascript
+// Get POS summary for November 2025
+fetch('https://your-proxy-domain.com/odoo/pos_summary?year=2025&month=11')
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "total_orders": 150,
+  "total_revenue": 45000,
+  "average_order_value": 300,
+  "date_range": {
+    "start": "2025-11-01",
+    "end": "2025-11-30"
+  }
+}
+```
+
+#### Odoo POS Order Items
+`GET /odoo/pos_order_items`
+
+Fetches line items for a specific POS order.
+
+**Query Parameters:**
+- `order_id` (required): POS order ID
+- `limit` (optional): Number of records (default: 100)
+
+**Usage Example:**
+```javascript
+fetch('https://your-proxy-domain.com/odoo/pos_order_items?order_id=123')
+```
+
+#### Odoo POS Order with Items
+`GET /odoo/pos_orders/:order_id/items`
+
+Fetches a POS order with all its line items.
+
+**Usage Example:**
+```javascript
+fetch('https://your-proxy-domain.com/odoo/pos_orders/123/items')
+```
+
+#### Odoo Inventory - Stock Levels
+`GET /odoo/inventory/stock_levels`
+
+Fetches current stock levels from inventory.
+
+**Query Parameters:**
+- `limit` (optional): Number of records (default: 100)
+
+#### Odoo Inventory - Stock Movements
+`GET /odoo/inventory/movements`
+
+Fetches completed stock movements.
+
+**Query Parameters:**
+- `limit` (optional): Number of records (default: 100)
+
+#### Odoo Inventory - Stock Pickings
+`GET /odoo/inventory/pickings`
+
+Fetches stock transfer records (pickings).
+
+**Query Parameters:**
+- `limit` (optional): Number of records (default: 100)
+
+#### Odoo Inventory - Summary
+`GET /odoo/inventory/summary`
+
+Returns inventory summary grouped by product or location.
+
+**Query Parameters:**
+- `group_by` (optional): `product` or `location` (default: `product`)
+- `limit` (optional): Number of records (default: 100)
+
+**Usage Examples:**
+```javascript
+// Group by product
+fetch('https://your-proxy-domain.com/odoo/inventory/summary?group_by=product')
+
+// Group by location
+fetch('https://your-proxy-domain.com/odoo/inventory/summary?group_by=location')
+```
+
+#### Odoo Dashboard
+`GET /odoo/dashboard`
+
+Returns quick dashboard metrics including customer count, sale orders, invoices, POS data, and total revenue.
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "customers": 450,
+  "sale_orders": 120,
+  "sale_revenue": 350000,
+  "invoices": 95,
+  "invoice_revenue": 280000,
+  "pos_orders": 340,
+  "pos_revenue": 125000,
+  "total_revenue": 475000
+}
+```
+
+#### Odoo Generic Model Access
+`GET /odoo/model/:modelName`
+
+Generic endpoint to access any Odoo model using search_read.
+
+**Query Parameters:**
+- `domain` (optional): JSON-encoded Odoo domain filter
+- `fields` (optional): Comma-separated list of fields to return
+- `limit` (optional): Number of records (default: 100)
+
+**Usage Examples:**
+```javascript
+// Fetch products
+fetch('https://your-proxy-domain.com/odoo/model/product.product?limit=50')
+
+// Fetch products with specific fields
+fetch('https://your-proxy-domain.com/odoo/model/product.product?fields=name,list_price,qty_available')
+
+// Fetch products with domain filter
+const domain = JSON.stringify([['list_price', '>', 100]]);
+fetch(`https://your-proxy-domain.com/odoo/model/product.product?domain=${encodeURIComponent(domain)}`)
+```
+
 ## Local Development
 
 ```bash
@@ -245,6 +481,23 @@ const API_CONFIG = {
         monthly: `${PROXY_BASE_URL}/extract/monthly`,
         quarterly: `${PROXY_BASE_URL}/extract/quarterly`,
         dateRange: `${PROXY_BASE_URL}/extract/date-range`
+    },
+    odoo: {
+        partners: `${PROXY_BASE_URL}/odoo/partners`,
+        saleOrders: `${PROXY_BASE_URL}/odoo/sale_orders`,
+        invoices: `${PROXY_BASE_URL}/odoo/invoices`,
+        posOrders: `${PROXY_BASE_URL}/odoo/pos_orders`,
+        posPayments: `${PROXY_BASE_URL}/odoo/pos_payments`,
+        posSummary: `${PROXY_BASE_URL}/odoo/pos_summary`,
+        posOrderItems: `${PROXY_BASE_URL}/odoo/pos_order_items`,
+        inventory: {
+            stockLevels: `${PROXY_BASE_URL}/odoo/inventory/stock_levels`,
+            movements: `${PROXY_BASE_URL}/odoo/inventory/movements`,
+            pickings: `${PROXY_BASE_URL}/odoo/inventory/pickings`,
+            summary: `${PROXY_BASE_URL}/odoo/inventory/summary`
+        },
+        dashboard: `${PROXY_BASE_URL}/odoo/dashboard`,
+        model: (modelName) => `${PROXY_BASE_URL}/odoo/model/${modelName}`
     }
 };
 ```
@@ -581,5 +834,59 @@ async function getRollingWindow(location, days) {
 
     const format = (date) => date.toISOString().split('T')[0];
     return await fetchDateRangeData(location, format(startDate), format(endDate));
+}
+```
+
+#### 5. Odoo ERP Data Integration
+```javascript
+// Fetch Odoo POS orders for current month
+async function getOdooCurrentMonthPOS() {
+    const now = new Date();
+    const params = new URLSearchParams({
+        year: now.getFullYear(),
+        month: now.getMonth() + 1
+    });
+
+    const response = await fetch(`${API_CONFIG.odoo.posOrders}?${params}`);
+    return await response.json();
+}
+
+// Fetch Odoo sales summary for Q4 2025
+async function getOdooQ4Sales() {
+    const response = await fetch(`${API_CONFIG.odoo.saleOrders}?year=2025&quarter=4`);
+    return await response.json();
+}
+
+// Fetch Odoo dashboard metrics
+async function getOdooDashboard() {
+    const response = await fetch(API_CONFIG.odoo.dashboard);
+    return await response.json();
+}
+
+// Fetch specific Odoo model data
+async function getOdooProducts() {
+    const url = API_CONFIG.odoo.model('product.product');
+    const params = new URLSearchParams({
+        fields: 'name,list_price,qty_available',
+        limit: 100
+    });
+
+    const response = await fetch(`${url}?${params}`);
+    return await response.json();
+}
+
+// Combined dashboard with all data sources
+async function getCompleteDashboard() {
+    const [topcare, erbilAvenue, odoo] = await Promise.all([
+        getAllLocationsCurrentMonth(), // TopCare data
+        fetch(API_CONFIG.erbilAvenue.dashboard).then(r => r.json()), // Erbil Avenue
+        fetch(API_CONFIG.odoo.dashboard).then(r => r.json()) // Odoo ERP
+    ]);
+
+    return {
+        topcare,
+        erbilAvenue,
+        odoo
+    };
 }
 ```

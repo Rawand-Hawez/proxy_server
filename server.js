@@ -1,9 +1,25 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const OdooService = require('./odooService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Odoo Service
+let odooService = null;
+if (process.env.ODOO_URL && process.env.ODOO_DB && process.env.ODOO_USER && process.env.ODOO_PASSWORD) {
+  odooService = new OdooService(
+    process.env.ODOO_URL,
+    process.env.ODOO_DB,
+    process.env.ODOO_USER,
+    process.env.ODOO_PASSWORD
+  );
+  console.log('Odoo service initialized');
+} else {
+  console.warn('Odoo credentials not found in .env - Odoo endpoints will be disabled');
+}
 
 // Date utility functions for monthly and quarterly data extraction
 const dateUtils = {
@@ -58,6 +74,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'ok',
     message: 'Dashboard Proxy Server is running',
+    odoo_configured: !!odooService,
     endpoints: {
       topcare: {
         erbil: '/api/erbil',
@@ -112,7 +129,38 @@ app.get('/', (req, res) => {
             resource: 'required for erbil-avenue (dashboard, history, expected-rent)'
           }
         }
-      }
+      },
+      odoo: odooService ? {
+        partners: '/odoo/partners',
+        sale_orders: '/odoo/sale_orders',
+        invoices: '/odoo/invoices',
+        pos_orders: '/odoo/pos_orders',
+        pos_payments: '/odoo/pos_payments',
+        pos_summary: '/odoo/pos_summary',
+        pos_order_items: '/odoo/pos_order_items?order_id={id}',
+        pos_order_with_items: '/odoo/pos_orders/{id}/items',
+        inventory: {
+          stock_levels: '/odoo/inventory/stock_levels',
+          movements: '/odoo/inventory/movements',
+          pickings: '/odoo/inventory/pickings',
+          summary: '/odoo/inventory/summary?group_by=product|location'
+        },
+        dashboard: '/odoo/dashboard',
+        generic_model: '/odoo/model/{modelName}',
+        date_range_support: {
+          description: 'All POS, sales, and invoice endpoints support date filtering',
+          parameters: {
+            monthly: 'year={year}&month={month}',
+            quarterly: 'year={year}&quarter={quarter}',
+            custom: 'start_date={YYYY-MM-DD}&end_date={YYYY-MM-DD}'
+          },
+          examples: [
+            '/odoo/pos_orders?year=2025&month=11',
+            '/odoo/sale_orders?year=2025&quarter=4',
+            '/odoo/invoices?start_date=2025-01-01&end_date=2025-01-31'
+          ]
+        }
+      } : 'Odoo not configured'
     }
   });
 });
@@ -629,6 +677,360 @@ app.get('/api/:location', async (req, res) => {
         details: error.message
       });
     }
+  }
+});
+
+// ============================================
+// ODOO ERP INTEGRATION ENDPOINTS
+// ============================================
+
+// Middleware to check if Odoo is configured
+const checkOdooConfigured = (req, res, next) => {
+  if (!odooService) {
+    return res.status(503).json({
+      success: false,
+      error: 'Odoo integration is not configured. Please check your .env file.'
+    });
+  }
+  next();
+};
+
+// Helper function to parse date range from query params
+const getDateRange = (req) => {
+  const { year, month, quarter, start_date, end_date } = req.query;
+
+  if (start_date && end_date) {
+    // Custom date range
+    return { start: start_date, end: end_date };
+  } else if (year && month) {
+    // Monthly range
+    const targetYear = parseInt(year);
+    const targetMonth = parseInt(month);
+    const range = dateUtils.getMonthRange(targetYear, targetMonth);
+    return { start: range.startFormatted, end: range.endFormatted };
+  } else if (year && quarter) {
+    // Quarterly range
+    const targetYear = parseInt(year);
+    const targetQuarter = parseInt(quarter);
+    const range = dateUtils.getQuarterRange(targetYear, targetQuarter);
+    return { start: range.startFormatted, end: range.endFormatted };
+  }
+
+  return { start: null, end: null };
+};
+
+// GET /odoo/partners - Fetch customer partners
+app.get('/odoo/partners', checkOdooConfigured, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const partners = await odooService.getPartners(limit);
+
+    res.json({
+      success: true,
+      count: partners.length,
+      data: partners
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo partners:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/sale_orders - Fetch sale orders with optional date filtering
+app.get('/odoo/sale_orders', checkOdooConfigured, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const { start, end } = getDateRange(req);
+
+    const orders = await odooService.getSaleOrders(limit, start, end);
+
+    res.json({
+      success: true,
+      count: orders.length,
+      ...(start && end && { date_range: { start, end } }),
+      data: orders
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo sale orders:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/invoices - Fetch invoices with optional date filtering
+app.get('/odoo/invoices', checkOdooConfigured, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const { start, end } = getDateRange(req);
+
+    const invoices = await odooService.getInvoices(limit, start, end);
+
+    res.json({
+      success: true,
+      count: invoices.length,
+      ...(start && end && { date_range: { start, end } }),
+      data: invoices
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo invoices:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/pos_orders - Fetch POS orders with optional date filtering
+app.get('/odoo/pos_orders', checkOdooConfigured, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const { start, end } = getDateRange(req);
+
+    const orders = await odooService.getPosOrders(limit, start, end);
+
+    res.json({
+      success: true,
+      count: orders.length,
+      ...(start && end && { date_range: { start, end } }),
+      data: orders
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo POS orders:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/pos_payments - Fetch POS payments with optional date filtering
+app.get('/odoo/pos_payments', checkOdooConfigured, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const { start, end } = getDateRange(req);
+
+    const payments = await odooService.getPosPayments(limit, start, end);
+
+    res.json({
+      success: true,
+      count: payments.length,
+      ...(start && end && { date_range: { start, end } }),
+      data: payments
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo POS payments:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/pos_summary - Aggregated POS summary with optional date filtering
+app.get('/odoo/pos_summary', checkOdooConfigured, async (req, res) => {
+  try {
+    const { start, end } = getDateRange(req);
+    const summary = await odooService.getPosSummary(start, end);
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Error fetching Odoo POS summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/pos_order_items - Fetch line items for a POS order
+app.get('/odoo/pos_order_items', checkOdooConfigured, async (req, res) => {
+  try {
+    const { order_id } = req.query;
+
+    if (!order_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'order_id parameter is required'
+      });
+    }
+
+    const limit = parseInt(req.query.limit) || 100;
+    const items = await odooService.getPosOrderItems(order_id, limit);
+
+    res.json({
+      success: true,
+      order_id: parseInt(order_id),
+      count: items.length,
+      data: items
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo POS order items:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/pos_orders/:order_id/items - Fetch POS order with its line items
+app.get('/odoo/pos_orders/:order_id/items', checkOdooConfigured, async (req, res) => {
+  try {
+    const orderId = req.params.order_id;
+    const limit = parseInt(req.query.limit) || 100;
+
+    const [order, items] = await Promise.all([
+      odooService.searchRead('pos.order', [['id', '=', parseInt(orderId)]], [], 1),
+      odooService.getPosOrderItems(orderId, limit)
+    ]);
+
+    if (order.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      order: order[0],
+      items_count: items.length,
+      items: items
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo POS order with items:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/inventory/stock_levels - Fetch stock levels
+app.get('/odoo/inventory/stock_levels', checkOdooConfigured, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const stockLevels = await odooService.getStockLevels(limit);
+
+    res.json({
+      success: true,
+      count: stockLevels.length,
+      data: stockLevels
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo stock levels:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/inventory/movements - Fetch stock movements
+app.get('/odoo/inventory/movements', checkOdooConfigured, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const movements = await odooService.getStockMovements(limit);
+
+    res.json({
+      success: true,
+      count: movements.length,
+      data: movements
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo stock movements:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/inventory/pickings - Fetch stock pickings
+app.get('/odoo/inventory/pickings', checkOdooConfigured, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const pickings = await odooService.getStockPickings(limit);
+
+    res.json({
+      success: true,
+      count: pickings.length,
+      data: pickings
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo stock pickings:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/inventory/summary - Inventory summary grouped by product or location
+app.get('/odoo/inventory/summary', checkOdooConfigured, async (req, res) => {
+  try {
+    const groupBy = req.query.group_by || 'product';
+    const limit = parseInt(req.query.limit) || 100;
+
+    const summary = await odooService.getInventorySummary(groupBy, limit);
+
+    res.json({
+      success: true,
+      grouped_by: groupBy,
+      count: summary.length,
+      data: summary
+    });
+  } catch (error) {
+    console.error('Error fetching Odoo inventory summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/dashboard - Quick dashboard metrics
+app.get('/odoo/dashboard', checkOdooConfigured, async (req, res) => {
+  try {
+    const dashboard = await odooService.getDashboard();
+    res.json(dashboard);
+  } catch (error) {
+    console.error('Error fetching Odoo dashboard:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /odoo/model/:modelName - Generic access to any Odoo model
+app.get('/odoo/model/:modelName', checkOdooConfigured, async (req, res) => {
+  try {
+    const { modelName } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
+
+    // Parse domain and fields from query params
+    const domain = req.query.domain ? JSON.parse(req.query.domain) : [];
+    const fields = req.query.fields ? req.query.fields.split(',') : [];
+
+    const records = await odooService.getModel(modelName, domain, fields, limit);
+
+    res.json({
+      success: true,
+      model: modelName,
+      count: records.length,
+      data: records
+    });
+  } catch (error) {
+    console.error(`Error fetching Odoo model ${req.params.modelName}:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
