@@ -44,12 +44,28 @@ fetch('https://your-proxy-domain.com/api/erbil?endpoint=dashboard&from=2025-01-0
 ### Erbil Avenue (Supabase)
 
 #### Resource Endpoints
-- `GET /erbil-avenue/dashboard` - Supabase `v_dashboard` dataset
+- `GET /erbil-avenue/dashboard` - Supabase `v_dashboard` dataset (comprehensive operations and financial data)
 - `GET /erbil-avenue/history` - Supabase `v_dashboard_history` dataset
 - `GET /erbil-avenue/expected-rent` - Supabase `v_monthly_rent_breakdown` dataset
 
+**Dashboard Data Structure:**
+The `/erbil-avenue/dashboard` endpoint returns comprehensive property management data including:
+- `operations`: Unit statistics by category (total, leased, occupied, vacant units)
+- `financial`: Rent and service charge data including:
+  - Current month snapshot (arrears, expected, collected)
+  - 6-month historical trends
+  - Expected monthly rent breakdown by tenant
+  - Expected monthly service charge breakdown by tenant
+  - Outstanding payments summary
+
+For detailed response format, see [docs/erbil_avenue.md](docs/erbil_avenue.md)
+
 **Usage Example:**
 ```javascript
+// Get dashboard data with all operations and financial metrics
+fetch('https://your-proxy-domain.com/erbil-avenue/dashboard')
+
+// Get historical data
 fetch('https://your-proxy-domain.com/erbil-avenue/history?select=*')
 ```
 
@@ -234,10 +250,12 @@ Fetches customer partners from Odoo.
 fetch('https://your-proxy-domain.com/odoo/partners?limit=50')
 ```
 
-#### Odoo Sale Orders
+#### Odoo Sale Orders (with Line Items)
 `GET /odoo/sale_orders`
 
-Fetches sale orders with optional date filtering.
+Fetches POS orders with line items included. Each order contains complete details including all products ordered.
+
+> **💡 Note:** This endpoint returns POS orders (for restaurant/retail operations) with their line items. Each order includes an `order_items` array with product details (name, quantity, price, discount).
 
 **Query Parameters:**
 - `limit` (optional): Number of records (default: 100)
@@ -248,7 +266,7 @@ Fetches sale orders with optional date filtering.
 
 **Usage Examples:**
 ```javascript
-// Get all sale orders
+// Get all sale orders with items
 fetch('https://your-proxy-domain.com/odoo/sale_orders')
 
 // Get sale orders for November 2025
@@ -259,6 +277,41 @@ fetch('https://your-proxy-domain.com/odoo/sale_orders?year=2025&quarter=4')
 
 // Get sale orders for custom date range
 fetch('https://your-proxy-domain.com/odoo/sale_orders?start_date=2025-01-01&end_date=2025-01-31')
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "id": 189,
+      "name": "chronoclash - 000148",
+      "partner_id": [15, "KRD Holding"],
+      "date_order": "2025-11-05 11:42:01",
+      "amount_total": 17550,
+      "state": "done",
+      "session_id": [22, "chronoclash/00018"],
+      "order_items": [
+        {
+          "id": 412,
+          "product_id": [16, "Chop Shop Salad"],
+          "qty": 1,
+          "price_unit": 7200,
+          "price_subtotal": 7200,
+          "price_subtotal_incl": 7200,
+          "discount": 0
+        },
+        {
+          "product_id": [6, "Classic Smash"],
+          "qty": 1,
+          "price_unit": 9000
+        }
+      ]
+    }
+  ]
+}
 ```
 
 #### Odoo Invoices

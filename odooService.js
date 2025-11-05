@@ -109,20 +109,51 @@ class OdooService {
   }
 
   // Get sale orders with optional date filtering
+  // Note: Since this Odoo instance uses POS instead of traditional sales,
+  // this method fetches POS orders with their line items
   async getSaleOrders(limit = 100, startDate = null, endDate = null) {
-    const domain = [['state', 'in', ['draft', 'sent', 'sale', 'done']]];
+    const domain = [];
 
     if (startDate && endDate) {
       domain.push(['date_order', '>=', startDate]);
       domain.push(['date_order', '<=', endDate]);
     }
 
-    return await this.searchRead(
-      'sale.order',
+    // Get POS orders
+    const orders = await this.searchRead(
+      'pos.order',
       domain,
-      ['name', 'partner_id', 'date_order', 'amount_total', 'state'],
+      ['name', 'partner_id', 'date_order', 'amount_total', 'state', 'session_id', 'lines'],
       limit
     );
+
+    // For each order, fetch the line items
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        try {
+          // Get line items for this order
+          const lineItems = await this.searchRead(
+            'pos.order.line',
+            [['order_id', '=', order.id]],
+            ['product_id', 'qty', 'price_unit', 'price_subtotal', 'price_subtotal_incl', 'discount'],
+            1000
+          );
+
+          return {
+            ...order,
+            order_items: lineItems
+          };
+        } catch (error) {
+          console.error(`Error fetching line items for order ${order.id}:`, error.message);
+          return {
+            ...order,
+            order_items: []
+          };
+        }
+      })
+    );
+
+    return ordersWithItems;
   }
 
   // Get invoices with optional date filtering
