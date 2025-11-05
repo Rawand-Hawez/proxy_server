@@ -9,7 +9,7 @@ COPY package*.json ./
 RUN npm install --production
 
 # Copy application code
-COPY server.js ./
+COPY server.js odooService.js ./
 
 # Expose port
 EXPOSE 3000
