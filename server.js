@@ -15,6 +15,27 @@ const CacheService = require('./cacheService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configure CORS with optional allowed origins env
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '*')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`Blocked CORS request from origin: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
 async function initializeServices() {
   // Initialize Database Service
   let databaseService = null;
@@ -117,6 +138,10 @@ let cacheService = null;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'demo-token-12345';
 
 const authenticateToken = (req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -155,6 +180,10 @@ app.use(helmet({
   },
 }));
 
+// Enable CORS before any authenticated routes
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) || 15 * 60 * 1000, // 15 minutes
@@ -170,8 +199,6 @@ app.use('/api/', limiter, authenticateToken);
 app.use('/odoo/', limiter, authenticateToken);
 app.use('/extract/', limiter, authenticateToken);
 
-// Enable CORS for all origins
-app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
