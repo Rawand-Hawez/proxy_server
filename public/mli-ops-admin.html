@@ -310,6 +310,7 @@
               <th>Start Date</th>
               <th>End Date</th>
               <th>Participant Fee</th>
+              <th>Program Cost</th>
               <th>Revenue</th>
               <th></th>
             </tr>
@@ -388,6 +389,10 @@
           <div class="form-group">
             <label for="formTotalRevenue">Total Revenue Override ($)</label>
             <input type="number" step="0.01" id="formTotalRevenue" min="0">
+          </div>
+          <div class="form-group">
+            <label for="formProgramCost">Program Cost ($)</label>
+            <input type="number" step="0.01" id="formProgramCost" min="0">
           </div>
           <div class="form-group" style="grid-column: span 2;">
             <label for="formNotes">Notes</label>
@@ -497,6 +502,7 @@
           <td>${program.start_date || ''}</td>
           <td>${program.end_date || ''}</td>
           <td>${program.participant_fee ? currency.format(program.participant_fee) : ''}</td>
+          <td>${program.program_cost ? currency.format(program.program_cost) : ''}</td>
           <td>${program.finalRevenue ? currency.format(program.finalRevenue) : ''}</td>
           <td>
             <button class="btn btn-primary" data-action="edit" data-id="${program.id}">Edit</button>
@@ -523,6 +529,7 @@
         document.getElementById('formActualRevenue').value = program.actual_revenue || '';
         document.getElementById('formNonMonetaryRevenue').value = program.non_monetary_revenue || '';
         document.getElementById('formTotalRevenue').value = program.total_revenue_input || '';
+        document.getElementById('formProgramCost').value = program.program_cost || '';
         document.getElementById('formNotes').value = program.notes || '';
         deleteBtn.style.display = 'inline-flex';
       } else {
@@ -561,6 +568,7 @@
         actual_revenue: parseNumber(document.getElementById('formActualRevenue').value),
         non_monetary_revenue: parseNumber(document.getElementById('formNonMonetaryRevenue').value),
         total_revenue_input: parseNumber(document.getElementById('formTotalRevenue').value),
+        program_cost: parseNumber(document.getElementById('formProgramCost').value),
         notes: document.getElementById('formNotes').value || null
       };
     }

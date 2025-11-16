@@ -46,6 +46,7 @@ Each program contains the following persisted fields:
 | `unit_price` | REAL | Optional legacy column for Excel imports |
 | `total_revenue_input` | REAL | Manual revenue override |
 | `non_monetary_revenue`, `actual_revenue` | REAL | Additional revenue sources |
+| `program_cost` | REAL | Total cost/budget per program |
 | `start_date`, `end_date` | TEXT | ISO dates (YYYY-MM-DD) |
 | `status` | TEXT | `planned`, `completed`, or `auto` (auto calculates based on start date & participants) |
 | `notes` | TEXT | Optional notes shown in admin UI |
@@ -80,6 +81,7 @@ All endpoints require the standard `Authorization` header.
       "number_of_participants": 11,
       "trainers": 1,
       "participant_fee": 286,
+      "program_cost": 3000,
       "final_revenue": 3146,
       "computed_revenue": 3146,
       "revenue_overridden": false,
@@ -108,6 +110,7 @@ All endpoints require the standard `Authorization` header.
   "start_date": "2025-01-15",
   "end_date": "2025-01-17",
   "participant_fee": 250,
+  "program_cost": 3200,
   "non_monetary_revenue": 500,
   "actual_revenue": 0,
   "status": "auto",

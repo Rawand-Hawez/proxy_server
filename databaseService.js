@@ -165,6 +165,7 @@ class DatabaseService {
         participant_fee REAL,
         non_monetary_revenue REAL,
         actual_revenue REAL,
+        program_cost REAL,
         notes TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -175,6 +176,7 @@ class DatabaseService {
       for (const table of tables) {
         await this.runQuery(table);
       }
+      await this.ensureMliOpsSchema();
       console.log('Database tables created successfully');
       this.initialized = true;
     } catch (error) {
@@ -951,6 +953,16 @@ class DatabaseService {
   // MLI OPERATIONS PROGRAMS
   // ==========================================
 
+  async ensureMliOpsSchema() {
+    try {
+      await this.runQuery('ALTER TABLE mli_ops_programs ADD COLUMN program_cost REAL');
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        throw error;
+      }
+    }
+  }
+
   async getAllMliOpsPrograms() {
     try {
       return await this.allQuery(
@@ -1024,6 +1036,8 @@ class DatabaseService {
       }
     }
 
+    const programCost = toNumber(program.program_cost ?? program.cost_per_program ?? program.total_cost);
+
     const payload = [
       program.program.trim(),
       participants,
@@ -1041,6 +1055,7 @@ class DatabaseService {
       participantFee,
       nonMonetaryRevenue,
       actualRevenue,
+      programCost,
       program.notes || null
     ];
 
@@ -1064,6 +1079,7 @@ class DatabaseService {
             participant_fee = ?,
             non_monetary_revenue = ?,
             actual_revenue = ?,
+            program_cost = ?,
             notes = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
@@ -1075,8 +1091,8 @@ class DatabaseService {
         INSERT INTO mli_ops_programs (
           program, number_of_participants, male, female, trainers, local_trainer, expat_trainer,
           duration_days, unit_price, total_revenue_input, status, start_date, end_date,
-          participant_fee, non_monetary_revenue, actual_revenue, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          participant_fee, non_monetary_revenue, actual_revenue, program_cost, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, payload);
       return result.id;
     } catch (error) {

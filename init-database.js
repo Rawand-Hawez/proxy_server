@@ -172,7 +172,8 @@ async function initializeDatabase() {
                 end_date: row.end_date,
                 participant_fee: row.participant_fee,
                 non_monetary_revenue: row.non_monetary_revenue,
-                actual_revenue: row.actual_revenue
+                actual_revenue: row.actual_revenue,
+                program_cost: row.program_cost
               })));
               console.log(`✅ Imported ${seedRows.length} MLI operations programs`);
             } else {

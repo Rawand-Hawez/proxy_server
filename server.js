@@ -363,6 +363,7 @@ const formatMliOpsProgram = (program) => {
   const totalInput = program.total_revenue_input !== undefined && program.total_revenue_input !== null
     ? Number(program.total_revenue_input)
     : null;
+  const programCost = toNumber(program.program_cost);
 
   let status = program.status;
   if (!status) {
@@ -373,6 +374,7 @@ const formatMliOpsProgram = (program) => {
     ...program,
     status,
     trainers: local + expat,
+    program_cost: programCost,
     computed_revenue: computedRevenue,
     final_revenue: totalInput !== null ? totalInput : computedRevenue,
     revenue_overridden: totalInput !== null && computedRevenue !== null && Math.abs(totalInput - computedRevenue) > 0.01
