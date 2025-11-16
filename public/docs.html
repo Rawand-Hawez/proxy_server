@@ -158,15 +158,58 @@
             <td>Manages marketing metrics, daily series, and bulk uploads.</td>
           </tr>
           <tr>
-            <td><strong>MLI Operations</strong></td>
+            <td><strong>MLI Operations - Programs</strong></td>
             <td>
               <code>GET /api/mli-ops/programs</code><br>
               <code>POST /api/mli-ops/programs</code><br>
               <code>PUT /api/mli-ops/programs/:id</code><br>
-              <code>DELETE /api/mli-ops/programs/:id</code><br>
-              <code>DELETE /api/mli-ops/programs</code>
+              <code>DELETE /api/mli-ops/programs/:id</code>
             </td>
-            <td>Training program CRUD with derived revenue metrics. Admin UI: <code>/admin/mli-ops</code>.</td>
+            <td>Training program CRUD with revenue, profitability, and quality metrics. Admin UI: <code>/admin/mli-ops</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>MLI Operations - Trainers</strong></td>
+            <td>
+              <code>GET /api/mli-ops/trainers</code><br>
+              <code>GET /api/mli-ops/trainers/:id</code><br>
+              <code>POST /api/mli-ops/trainers</code><br>
+              <code>PUT /api/mli-ops/trainers/:id</code><br>
+              <code>DELETE /api/mli-ops/trainers/:id</code>
+            </td>
+            <td>Trainer master data with type classification (local/expat), contact info, and active status.</td>
+          </tr>
+          <tr>
+            <td><strong>MLI Operations - Modules</strong></td>
+            <td>
+              <code>GET /api/mli-ops/programs/:programId/modules</code><br>
+              <code>GET /api/mli-ops/modules/:id</code><br>
+              <code>POST /api/mli-ops/programs/:programId/modules</code><br>
+              <code>PUT /api/mli-ops/modules/:id</code><br>
+              <code>DELETE /api/mli-ops/modules/:id</code>
+            </td>
+            <td>Program modules with duration and pricing. Each program can have multiple modules.</td>
+          </tr>
+          <tr>
+            <td><strong>MLI Operations - Assignments</strong></td>
+            <td>
+              <code>GET /api/mli-ops/modules/:moduleId/trainers</code><br>
+              <code>GET /api/mli-ops/trainers/:trainerId/modules</code><br>
+              <code>POST /api/mli-ops/modules/:moduleId/trainers</code><br>
+              <code>PUT /api/mli-ops/module-trainers/:id</code><br>
+              <code>DELETE /api/mli-ops/module-trainers/:id</code>
+            </td>
+            <td>Assign trainers to specific modules with role and fee tracking.</td>
+          </tr>
+          <tr>
+            <td><strong>MLI Operations - Surveys</strong></td>
+            <td>
+              <code>GET /api/mli-ops/programs/:programId/surveys</code><br>
+              <code>GET /api/mli-ops/programs/:programId/surveys/aggregates</code><br>
+              <code>POST /api/mli-ops/programs/:programId/surveys</code><br>
+              <code>PUT /api/mli-ops/surveys/:id</code><br>
+              <code>DELETE /api/mli-ops/surveys/:id</code>
+            </td>
+            <td>End-of-program evaluations with content and delivery ratings (1-5). Auto-calculates program averages.</td>
           </tr>
           <tr>
             <td><strong>Odoo</strong></td>
@@ -190,29 +233,22 @@
     </section>
 
     <section>
-      <h2>MLI Operations Payload</h2>
+      <h2>MLI Operations - Complete Example</h2>
+      <p>The MLI Operations API now supports a full relational model with trainers, modules, assignments, and surveys.</p>
+
+      <h3 style="margin-top: 24px;">1. Create a Trainer</h3>
       <div class="grid">
         <div class="card">
-          <p class="pill">Sample Request</p>
-          <pre><code>POST /api/mli-ops/programs
+          <p class="pill">Request</p>
+          <pre><code>POST /api/mli-ops/trainers
 Authorization: Bearer &lt;token&gt;
 Content-Type: application/json
 
 {
-  "program": "Leadership Essentials",
-  "number_of_participants": 18,
-  "male": 9,
-  "female": 9,
-  "local_trainer": 1,
-  "expat_trainer": 1,
-  "duration_days": 3,
-  "program_cost": 3200,
-  "participant_fee": 250,
-  "non_monetary_revenue": 500,
-  "start_date": "2025-02-10",
-  "end_date": "2025-02-12",
-  "status": "auto",
-  "notes": "Pilot cohort"
+  "full_name": "Dr. Sarah Ahmed",
+  "trainer_type": "local",
+  "email": "sarah@example.com",
+  "phone": "+964 770 123 4567"
 }</code></pre>
         </div>
         <div class="card">
@@ -220,19 +256,96 @@ Content-Type: application/json
           <pre><code>{
   "success": true,
   "data": {
+    "id": 1,
+    "full_name": "Dr. Sarah Ahmed",
+    "trainer_type": "local",
+    "email": "sarah@example.com",
+    "phone": "+964 770 123 4567",
+    "active": 1
+  }
+}</code></pre>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 24px;">2. Create a Program</h3>
+      <div class="grid">
+        <div class="card">
+          <p class="pill">Request</p>
+          <pre><code>POST /api/mli-ops/programs
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+
+{
+  "program": "Leadership Essentials",
+  "number_of_participants": 18,
+  "male_participants": 9,
+  "female_participants": 9,
+  "participant_fee": 250,
+  "cash_revenue": 4500,
+  "non_monetary_revenue": 500,
+  "program_cost": 3200,
+  "start_date": "2025-02-10",
+  "end_date": "2025-02-12",
+  "status": "completed"
+}</code></pre>
+        </div>
+        <div class="card">
+          <p class="pill">Response (Enhanced)</p>
+          <pre><code>{
+  "success": true,
+  "data": {
     "id": 7,
     "program": "Leadership Essentials",
     "status": "completed",
-    "trainers": 2,
+    "cash_revenue": 4500,
+    "non_monetary_revenue": 500,
+    "total_revenue": 5000,
     "program_cost": 3200,
-    "final_revenue": 4500,
-    "computed_revenue": 4500,
-    "revenue_overridden": false,
+    "profit": 1800,
+    "profit_margin": 36.0,
     ...
   }
 }</code></pre>
         </div>
       </div>
+
+      <h3 style="margin-top: 24px;">3. Add a Module to Program</h3>
+      <pre><code>POST /api/mli-ops/programs/7/modules
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+
+{
+  "name": "Module 1: Strategic Thinking",
+  "duration_days": 1.5,
+  "description": "Core leadership concepts"
+}</code></pre>
+
+      <h3 style="margin-top: 24px;">4. Assign Trainer to Module</h3>
+      <pre><code>POST /api/mli-ops/modules/1/trainers
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+
+{
+  "trainer_id": 1,
+  "role": "Lead Trainer",
+  "trainer_fee": 1200
+}</code></pre>
+
+      <h3 style="margin-top: 24px;">5. Submit Survey Response</h3>
+      <pre><code>POST /api/mli-ops/programs/7/surveys
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+
+{
+  "respondent_type": "participant",
+  "content_rating": 5,
+  "delivery_rating": 4,
+  "overall_rating": 4.5,
+  "comments": "Excellent content, engaging delivery"
+}</code></pre>
+      <p style="margin-top: 12px; font-size: 0.9rem; opacity: 0.8;">
+        Note: Submitting a survey automatically updates the program's average ratings.
+      </p>
     </section>
 
     <section>
@@ -278,10 +391,11 @@ Content-Type: application/json
     <section>
       <h2>Helpful Tips</h2>
       <ul>
-        <li>Need machine-readable output? Use <code>/ ?format=json</code> or include <code>Accept: application/json</code>.</li>
+        <li>Need machine-readable output? Use <code>/?format=json</code> or include <code>Accept: application/json</code>.</li>
         <li>Initial data loads: run <code>node init-database.js</code> to import climate, marketing, and MLI Ops seed datasets.</li>
+        <li><strong>MLI Operations Migration:</strong> The schema automatically migrates on server start. New tables for trainers, modules, and surveys are created automatically. See <code>MLI_MIGRATION_SUMMARY.md</code> for details.</li>
         <li>When deploying on Coolify, map persistent volumes for <code>/app/data</code> (database) and <code>/app/uploads</code> (Excel imports).</li>
-        <li>Detailed references live in the repository: <code>CLIMATE_API.md</code>, <code>MARKETING_API.md</code>, and <code>MLI_OPERATIONS_API.md</code>.</li>
+        <li>Detailed references live in the repository: <code>CLIMATE_API.md</code>, <code>MARKETING_API.md</code>, <code>MLI_OPERATIONS_API.md</code>, and <code>MLI_MIGRATION_SUMMARY.md</code>.</li>
       </ul>
     </section>
   </div>

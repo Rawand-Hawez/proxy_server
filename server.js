@@ -308,7 +308,40 @@ const buildApiIndexResponse = () => ({
       stats: '/api/marketing/:projectKey/stats'
     },
     mliOperations: {
-      programs: '/api/mli-ops/programs',
+      programs: {
+        list: '/api/mli-ops/programs',
+        create: 'POST /api/mli-ops/programs',
+        update: 'PUT /api/mli-ops/programs/:id',
+        delete: 'DELETE /api/mli-ops/programs/:id'
+      },
+      trainers: {
+        list: '/api/mli-ops/trainers',
+        get: '/api/mli-ops/trainers/:id',
+        create: 'POST /api/mli-ops/trainers',
+        update: 'PUT /api/mli-ops/trainers/:id',
+        delete: 'DELETE /api/mli-ops/trainers/:id'
+      },
+      modules: {
+        listByProgram: '/api/mli-ops/programs/:programId/modules',
+        get: '/api/mli-ops/modules/:id',
+        create: 'POST /api/mli-ops/programs/:programId/modules',
+        update: 'PUT /api/mli-ops/modules/:id',
+        delete: 'DELETE /api/mli-ops/modules/:id'
+      },
+      moduleTrainers: {
+        listByModule: '/api/mli-ops/modules/:moduleId/trainers',
+        listByTrainer: '/api/mli-ops/trainers/:trainerId/modules',
+        assign: 'POST /api/mli-ops/modules/:moduleId/trainers',
+        update: 'PUT /api/mli-ops/module-trainers/:id',
+        remove: 'DELETE /api/mli-ops/module-trainers/:id'
+      },
+      surveys: {
+        listByProgram: '/api/mli-ops/programs/:programId/surveys',
+        aggregates: '/api/mli-ops/programs/:programId/surveys/aggregates',
+        create: 'POST /api/mli-ops/programs/:programId/surveys',
+        update: 'PUT /api/mli-ops/surveys/:id',
+        delete: 'DELETE /api/mli-ops/surveys/:id'
+      },
       admin: '/admin/mli-ops',
       docs: '/public/mli-ops-admin.html'
     },
