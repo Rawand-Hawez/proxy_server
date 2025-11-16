@@ -1,5 +1,5 @@
 const xmlrpc = require('xmlrpc');
-const url = require('url');
+const { URL } = require('url');
 
 class OdooService {
   constructor(odooUrl, database, username, password) {
@@ -10,11 +10,12 @@ class OdooService {
     this.uid = null;
 
     // Parse URL to get host, port, and path
-    const parsedUrl = url.parse(odooUrl);
+    const parsedUrl = new URL(odooUrl);
     this.host = parsedUrl.hostname;
     this.port = parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80);
     this.secure = parsedUrl.protocol === 'https:';
-    this.path = parsedUrl.path || '/';
+    const pathname = parsedUrl.pathname || '/';
+    this.path = pathname.endsWith('/') ? pathname : `${pathname}/`;
   }
 
   // Create XML-RPC client for common endpoint

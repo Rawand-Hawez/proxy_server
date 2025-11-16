@@ -167,6 +167,21 @@ const authenticateToken = (req, res, next) => {
 // Apply authentication to admin endpoints
 const requireAuth = [authenticateToken];
 
+// Allow unauthenticated access to specific utility routes (health checks, token self-test)
+const isPublicRoute = (req) => {
+  const publicRoutes = [
+    { path: '/', methods: ['GET', 'HEAD'] },
+    { path: '/admin/token-validate', methods: ['GET'] }
+  ];
+
+  return publicRoutes.some(route => {
+    if (req.path !== route.path) {
+      return false;
+    }
+    return route.methods.includes(req.method);
+  });
+};
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -200,7 +215,12 @@ app.use('/odoo/', limiter);
 app.use('/extract/', limiter);
 
 // Global authentication middleware to protect every endpoint
-app.use(authenticateToken);
+app.use((req, res, next) => {
+  if (isPublicRoute(req)) {
+    return next();
+  }
+  return authenticateToken(req, res, next);
+});
 
 app.use(express.json());
 

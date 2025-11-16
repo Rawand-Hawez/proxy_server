@@ -1,6 +1,6 @@
 require('dotenv').config();
 const xmlrpc = require('xmlrpc');
-const url = require('url');
+const { URL } = require('url');
 
 const ODOO_URL = process.env.ODOO_URL;
 const ODOO_DB = process.env.ODOO_DB;
@@ -14,12 +14,15 @@ console.log('User:', ODOO_USER);
 console.log('Password length:', ODOO_PASSWORD ? ODOO_PASSWORD.length : 0);
 console.log('---');
 
-const parsedUrl = url.parse(ODOO_URL);
+const parsedUrl = new URL(ODOO_URL);
+const basePath = parsedUrl.pathname || '/';
+const normalizedPath = basePath.endsWith('/') ? basePath : `${basePath}/`;
+
 console.log('Parsed URL:', {
   hostname: parsedUrl.hostname,
-  port: parsedUrl.port || 443,
+  port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
   protocol: parsedUrl.protocol,
-  path: parsedUrl.path
+  pathname: parsedUrl.pathname
 });
 console.log('---');
 
@@ -27,7 +30,7 @@ console.log('---');
 const clientOptions = {
   host: parsedUrl.hostname,
   port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
-  path: `${parsedUrl.path || '/'}xmlrpc/2/common`
+  path: `${normalizedPath}xmlrpc/2/common`
 };
 
 console.log('Client options:', clientOptions);
