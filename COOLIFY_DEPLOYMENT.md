@@ -59,40 +59,9 @@ DATABASE_PATH=/app/data/proxy_server.db
 
 ### 3. Configure Volumes (Automatic)
 
-**Database Initialization**: On first deployment, the application will automatically:
-- Initialize the SQLite database with the required schema
-- Import climate project data from `docs/data/climate/climate.js`
-- Import MLI marketing data from `docs/data/mli/mli.js`
-- Skip initialization if data already exists (safe for redeployments)
-
-
-**Database Initialization**: On first deployment, the application will automatically:
-- Initialize the SQLite database with the required schema
-- Import climate project data from `docs/data/climate/climate.js`
-- Import MLI marketing data from `docs/data/mli/mli.js`
-- Skip initialization if data already exists (safe for redeployments)
 The `docker-compose.yml` automatically creates persistent volumes for:
-
-**Database Initialization**: On first deployment, the application will automatically:
-- Initialize the SQLite database with the required schema
-- Import climate project data from `docs/data/climate/climate.js`
-- Import MLI marketing data from `docs/data/mli/mli.js`
-- Skip initialization if data already exists (safe for redeployments)
-- **app-data**: SQLite database storage
-
-**Database Initialization**: On first deployment, the application will automatically:
-- Initialize the SQLite database with the required schema
-- Import climate project data from `docs/data/climate/climate.js`
-- Import MLI marketing data from `docs/data/mli/mli.js`
-- Skip initialization if data already exists (safe for redeployments)
+- **app-data**: SQLite database storage (persists between deployments)
 - **redis-data**: Redis persistence
-
-**Database Initialization**: On first deployment, the application will automatically:
-- Initialize the SQLite database with the required schema
-- Import climate project data from `docs/data/climate/climate.js`
-- Import MLI marketing data from `docs/data/mli/mli.js`
-- Skip initialization if data already exists (safe for redeployments)
-
 
 **Database Initialization**: On first deployment, the application will automatically:
 - Initialize the SQLite database with the required schema
@@ -105,6 +74,15 @@ The `docker-compose.yml` automatically creates persistent volumes for:
 2. Wait for the build and deployment to complete
 3. Check the logs for successful startup messages:
    ```
+   🔍 Checking database initialization status...
+   📊 Found 0 climate projects
+   📊 Found 0 marketing projects
+   📦 Database is empty, importing initial data...
+   🌍 Importing climate data...
+   ✅ Imported 9 climate projects
+   📊 Importing marketing data...
+   ✅ Imported MLI project with 8 metrics and 248 data points
+   ✅ Database initialization complete!
    Connected to Redis
    Redis cache service initialized successfully
    Database service initialized successfully

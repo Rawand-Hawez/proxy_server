@@ -27,24 +27,32 @@ async function initializeDatabase() {
         console.log('🌍 Importing climate data...');
         const climateDataPath = path.join(__dirname, 'docs/data/climate/climate.js');
         if (fs.existsSync(climateDataPath)) {
-          const climateData = require(climateDataPath);
+          // Read the file content and extract the CLIMATE_DATA object
+          const fileContent = fs.readFileSync(climateDataPath, 'utf8');
+          const match = fileContent.match(/const CLIMATE_DATA = ({[\s\S]*?});/);
 
-          for (const project of climateData.projects) {
-            await db.createClimateProject({
-              project: project.project,
-              amount: project.amount,
-              unit: project.unit,
-              duration: project.duration,
-              status: project.status,
-              location: project.location,
-              partner: project.partner,
-              directBeneficiary: project.directBeneficiary || 0,
-              indirectBeneficiary: project.indirectBeneficiary || 0,
-              environmentalOutcome: project.environmentalOutcome || '',
-              brief: project.brief || ''
-            });
+          if (match) {
+            const climateData = eval('(' + match[1] + ')');
+
+            for (const project of climateData.projects) {
+              await db.createClimateProject({
+                project: project.project,
+                amount: project.amount,
+                unit: project.unit,
+                duration: project.duration,
+                status: project.status,
+                location: project.location,
+                partner: project.partner,
+                directBeneficiary: project.directBeneficiary || 0,
+                indirectBeneficiary: project.indirectBeneficiary || 0,
+                environmentalOutcome: project.environmentalOutcome || '',
+                brief: project.brief || ''
+              });
+            }
+            console.log(`✅ Imported ${climateData.projects.length} climate projects`);
+          } else {
+            console.log('⚠️  Could not parse climate data, skipping');
           }
-          console.log(`✅ Imported ${climateData.projects.length} climate projects`);
         } else {
           console.log('⚠️  Climate data file not found, skipping');
         }
@@ -55,45 +63,65 @@ async function initializeDatabase() {
         console.log('📊 Importing marketing data...');
         const mliDataPath = path.join(__dirname, 'docs/data/mli/mli.js');
         if (fs.existsSync(mliDataPath)) {
-          const mliData = require(mliDataPath);
+          // Read the file content and extract the MLI_DATA object
+          const fileContent = fs.readFileSync(mliDataPath, 'utf8');
+          const match = fileContent.match(/const MLI_DATA = ({[\s\S]*?});/);
 
-          // Create MLI project
-          const projectId = await db.createMarketingProject({
-            projectKey: 'mli',
-            projectName: 'MLI Marketing',
-            description: 'Marketing metrics for MLI project'
-          });
+          if (match) {
+            const mliData = eval('(' + match[1] + ')');
 
-          // Create metrics
-          const metricIds = {};
-          for (const [key, config] of Object.entries(mliData.metrics)) {
-            const metricId = await db.createMarketingMetric({
-              projectId: projectId,
-              metricKey: key,
-              metricLabel: config.label,
-              category: config.category
+            // Create MLI project
+            const projectId = await db.createMarketingProject({
+              projectKey: 'mli',
+              projectName: 'MLI Marketing',
+              description: 'Marketing metrics for MLI project'
             });
-            metricIds[key] = metricId;
-          }
 
-          // Import data points
-          const dataPoints = [];
-          for (const [metricKey, metricId] of Object.entries(metricIds)) {
-            const metricData = mliData.data[metricKey];
-            if (metricData && Array.isArray(metricData)) {
-              for (const point of metricData) {
-                dataPoints.push({
-                  projectId: projectId,
-                  metricId: metricId,
-                  date: point.date,
-                  value: point.value
-                });
+            // Define metrics based on the data structure
+            const metrics = {
+              fb_views: { label: 'Facebook Views', category: 'Facebook' },
+              fb_visits: { label: 'Facebook Visits', category: 'Facebook' },
+              fb_viewers: { label: 'Facebook Viewers', category: 'Facebook' },
+              ig_reach: { label: 'Instagram Reach', category: 'Instagram' },
+              ig_interactions: { label: 'Instagram Interactions', category: 'Instagram' },
+              ig_views: { label: 'Instagram Views', category: 'Instagram' },
+              ig_follows: { label: 'Instagram Follows', category: 'Instagram' },
+              ig_visits: { label: 'Instagram Visits', category: 'Instagram' }
+            };
+
+            // Create metrics
+            const metricIds = {};
+            for (const [key, config] of Object.entries(metrics)) {
+              const metricId = await db.createMarketingMetric({
+                projectId: projectId,
+                metricKey: key,
+                metricLabel: config.label,
+                category: config.category
+              });
+              metricIds[key] = metricId;
+            }
+
+            // Import data points
+            const dataPoints = [];
+            for (const [metricKey, metricId] of Object.entries(metricIds)) {
+              const metricData = mliData[metricKey];
+              if (metricData && Array.isArray(metricData)) {
+                for (const point of metricData) {
+                  dataPoints.push({
+                    projectId: projectId,
+                    metricId: metricId,
+                    date: point.Date,
+                    value: point.Value
+                  });
+                }
               }
             }
-          }
 
-          await db.bulkUpsertMarketingData(dataPoints);
-          console.log(`✅ Imported MLI project with ${Object.keys(metricIds).length} metrics and ${dataPoints.length} data points`);
+            await db.bulkUpsertMarketingData(dataPoints);
+            console.log(`✅ Imported MLI project with ${Object.keys(metricIds).length} metrics and ${dataPoints.length} data points`);
+          } else {
+            console.log('⚠️  Could not parse MLI data, skipping');
+          }
         } else {
           console.log('⚠️  MLI data file not found, skipping');
         }
