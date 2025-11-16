@@ -144,6 +144,30 @@ class DatabaseService {
         FOREIGN KEY (project_id) REFERENCES marketing_projects(id) ON DELETE CASCADE,
         FOREIGN KEY (metric_id) REFERENCES marketing_metrics(id) ON DELETE CASCADE,
         UNIQUE(project_id, metric_id, date)
+      )`,
+
+      // MLI Operations programs
+      `CREATE TABLE IF NOT EXISTS mli_ops_programs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        program TEXT NOT NULL UNIQUE,
+        number_of_participants REAL,
+        male REAL,
+        female REAL,
+        trainers REAL,
+        local_trainer REAL,
+        expat_trainer REAL,
+        duration_days REAL,
+        unit_price REAL,
+        total_revenue_input REAL,
+        status TEXT,
+        start_date TEXT,
+        end_date TEXT,
+        participant_fee REAL,
+        non_monetary_revenue REAL,
+        actual_revenue REAL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`
     ];
 
@@ -919,6 +943,183 @@ class DatabaseService {
       return result.changes > 0;
     } catch (error) {
       console.error('Error deleting marketing data:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // MLI OPERATIONS PROGRAMS
+  // ==========================================
+
+  async getAllMliOpsPrograms() {
+    try {
+      return await this.allQuery(
+        `SELECT * FROM mli_ops_programs ORDER BY
+          CASE WHEN start_date IS NULL THEN 1 ELSE 0 END,
+          start_date, program`
+      );
+    } catch (error) {
+      console.error('Error fetching MLI operations programs:', error);
+      throw error;
+    }
+  }
+
+  async getMliOpsProgramById(id) {
+    try {
+      return await this.getQuery(`SELECT * FROM mli_ops_programs WHERE id = ?`, [id]);
+    } catch (error) {
+      console.error('Error fetching MLI operations program:', error);
+      throw error;
+    }
+  }
+
+  async getMliOpsProgramCount() {
+    try {
+      const row = await this.getQuery(`SELECT COUNT(*) as count FROM mli_ops_programs`);
+      return row?.count || 0;
+    } catch (error) {
+      console.error('Error counting MLI operations programs:', error);
+      throw error;
+    }
+  }
+
+  async upsertMliOpsProgram(program) {
+    if (!program || !program.program) {
+      throw new Error('Program name is required');
+    }
+
+    const toNumber = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const num = Number(value);
+      return Number.isNaN(num) ? null : num;
+    };
+
+    const trimDate = (value) => {
+      if (!value) return null;
+      return String(value).split('T')[0];
+    };
+
+    const participants = toNumber(program.number_of_participants);
+    const localTrainer = toNumber(program.local_trainer) || 0;
+    const expatTrainer = toNumber(program.expat_trainer) || 0;
+    const participantFee = toNumber(program.participant_fee);
+    const nonMonetaryRevenue = toNumber(program.non_monetary_revenue);
+    const actualRevenue = toNumber(program.actual_revenue);
+    const totalRevenueInput = program.total_revenue_input !== undefined
+      ? toNumber(program.total_revenue_input)
+      : (participants && participantFee ? participants * participantFee : null);
+
+    let status = program.status;
+    if (!status || status === 'auto') {
+      const today = new Date().toISOString().split('T')[0];
+      const startDate = trimDate(program.start_date);
+      if (startDate && startDate > today) {
+        status = 'planned';
+      } else if ((participants || 0) > 0 || (actualRevenue || 0) > 0) {
+        status = 'completed';
+      } else {
+        status = 'planned';
+      }
+    }
+
+    const payload = [
+      program.program.trim(),
+      participants,
+      toNumber(program.male),
+      toNumber(program.female),
+      localTrainer + expatTrainer,
+      localTrainer,
+      expatTrainer,
+      toNumber(program.duration_days),
+      toNumber(program.unit_price),
+      totalRevenueInput,
+      status,
+      trimDate(program.start_date),
+      trimDate(program.end_date),
+      participantFee,
+      nonMonetaryRevenue,
+      actualRevenue,
+      program.notes || null
+    ];
+
+    try {
+      if (program.id) {
+        await this.runQuery(`
+          UPDATE mli_ops_programs SET
+            program = ?,
+            number_of_participants = ?,
+            male = ?,
+            female = ?,
+            trainers = ?,
+            local_trainer = ?,
+            expat_trainer = ?,
+            duration_days = ?,
+            unit_price = ?,
+            total_revenue_input = ?,
+            status = ?,
+            start_date = ?,
+            end_date = ?,
+            participant_fee = ?,
+            non_monetary_revenue = ?,
+            actual_revenue = ?,
+            notes = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [...payload, program.id]);
+        return program.id;
+      }
+
+      const result = await this.runQuery(`
+        INSERT INTO mli_ops_programs (
+          program, number_of_participants, male, female, trainers, local_trainer, expat_trainer,
+          duration_days, unit_price, total_revenue_input, status, start_date, end_date,
+          participant_fee, non_monetary_revenue, actual_revenue, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, payload);
+      return result.id;
+    } catch (error) {
+      console.error('Error saving MLI operations program:', error);
+      throw error;
+    }
+  }
+
+  async deleteMliOpsProgram(id) {
+    try {
+      const result = await this.runQuery(`DELETE FROM mli_ops_programs WHERE id = ?`, [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting MLI operations program:', error);
+      throw error;
+    }
+  }
+
+  async clearMliOpsPrograms() {
+    try {
+      await this.runQuery(`DELETE FROM mli_ops_programs`);
+      return true;
+    } catch (error) {
+      console.error('Error clearing MLI operations programs:', error);
+      throw error;
+    }
+  }
+
+  async bulkUpsertMliOpsPrograms(programs = []) {
+    if (!programs.length) {
+      return 0;
+    }
+
+    try {
+      await this.runQuery('BEGIN TRANSACTION');
+      for (const program of programs) {
+        await this.upsertMliOpsProgram(program);
+      }
+      await this.runQuery('COMMIT');
+      return programs.length;
+    } catch (error) {
+      await this.runQuery('ROLLBACK');
+      console.error('Error bulk upserting MLI operations programs:', error);
       throw error;
     }
   }

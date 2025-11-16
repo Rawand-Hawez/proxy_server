@@ -3,6 +3,26 @@
 const DatabaseService = require('./databaseService');
 const fs = require('fs');
 const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
+
+function loadMliOpsSeedData(seedPath) {
+  return new Promise((resolve, reject) => {
+    const seedDb = new sqlite3.Database(seedPath, sqlite3.OPEN_READONLY, (err) => {
+      if (err) {
+        return reject(err);
+      }
+
+      seedDb.all('SELECT * FROM programs', (error, rows) => {
+        seedDb.close();
+        if (error) {
+          reject(error);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  });
+}
 
 async function initializeDatabase() {
   console.log('🔍 Checking database initialization status...');
@@ -14,12 +34,14 @@ async function initializeDatabase() {
     // Check if we have any climate projects
     const climateProjects = await db.getAllClimateProjects();
     const marketingProjects = await db.getAllMarketingProjects();
+    const mliOpsCount = await db.getMliOpsProgramCount();
 
     console.log(`📊 Found ${climateProjects.length} climate projects`);
     console.log(`📊 Found ${marketingProjects.length} marketing projects`);
+    console.log(`📊 Found ${mliOpsCount} MLI operations programs`);
 
     // If database is empty, import initial data
-    if (climateProjects.length === 0 || marketingProjects.length === 0) {
+    if (climateProjects.length === 0 || marketingProjects.length === 0 || mliOpsCount === 0) {
       console.log('📦 Database is empty, importing initial data...');
 
       // Import climate data if empty
@@ -124,6 +146,43 @@ async function initializeDatabase() {
           }
         } else {
           console.log('⚠️  MLI data file not found, skipping');
+        }
+      }
+
+      if (mliOpsCount === 0) {
+        console.log('🏗️ Importing MLI operations data...');
+        const seedDbPath = path.join(__dirname, 'docs/data/mli_ops/programs.db');
+        if (fs.existsSync(seedDbPath)) {
+          try {
+            const seedRows = await loadMliOpsSeedData(seedDbPath);
+            if (seedRows.length > 0) {
+              await db.bulkUpsertMliOpsPrograms(seedRows.map(row => ({
+                program: row.program,
+                number_of_participants: row.number_of_participants,
+                male: row.male,
+                female: row.female,
+                trainers: row.trainers,
+                local_trainer: row.local_trainer,
+                expat_trainer: row.expat_trainer,
+                duration_days: row.duration_days,
+                unit_price: row.unit_price,
+                total_revenue_input: row.total_revenue_input,
+                status: row.status,
+                start_date: row.start_date,
+                end_date: row.end_date,
+                participant_fee: row.participant_fee,
+                non_monetary_revenue: row.non_monetary_revenue,
+                actual_revenue: row.actual_revenue
+              })));
+              console.log(`✅ Imported ${seedRows.length} MLI operations programs`);
+            } else {
+              console.log('⚠️  MLI operations seed database is empty, skipping');
+            }
+          } catch (error) {
+            console.log('⚠️  Failed to import MLI operations data:', error.message);
+          }
+        } else {
+          console.log('⚠️  MLI operations seed database not found, skipping');
         }
       }
 

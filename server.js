@@ -14,6 +14,7 @@ const CacheService = require('./cacheService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const DOCS_PAGE_PATH = path.join(__dirname, 'public', 'docs.html');
 
 // Configure CORS with optional allowed origins env
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '*')
@@ -228,100 +229,7 @@ app.use(express.json());
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Health check endpoint
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Dashboard Proxy Server is running',
-    odoo_configured: !!odooService,
-    endpoints: {
-      topcare: {
-        erbil: '/api/erbil',
-        duhok: '/api/duhok',
-        bahrka: '/api/bahrka'
-      },
-      erbilAvenue: {
-        dashboard: '/erbil-avenue/dashboard',
-        history: '/erbil-avenue/history',
-        expectedRent: '/erbil-avenue/expected-rent'
-      },
-      dataExtraction: {
-        monthly: {
-          description: 'Extract data for a specific calendar month',
-          examples: [
-            '/extract/monthly?location=erbil&year=2025&month=3',
-            '/extract/monthly?location=erbil-avenue&resource=history&year=2025&month=3',
-            '/extract/monthly?location=duhok (defaults to current month)'
-          ],
-          parameters: {
-            location: 'required (erbil, duhok, bahrka, or erbil-avenue)',
-            year: 'optional (defaults to current year)',
-            month: 'optional (1-12, defaults to current month)',
-            resource: 'required for erbil-avenue (dashboard, history, expected-rent)'
-          }
-        },
-        quarterly: {
-          description: 'Extract data for a specific quarter',
-          examples: [
-            '/extract/quarterly?location=erbil&year=2025&quarter=1',
-            '/extract/quarterly?location=erbil-avenue&resource=history&year=2025&quarter=2',
-            '/extract/quarterly?location=bahrka (defaults to current quarter)'
-          ],
-          parameters: {
-            location: 'required (erbil, duhok, bahrka, or erbil-avenue)',
-            year: 'optional (defaults to current year)',
-            quarter: 'optional (1-4, defaults to current quarter)',
-            resource: 'required for erbil-avenue (dashboard, history, expected-rent)'
-          }
-        },
-        dateRange: {
-          description: 'Extract data for a custom date range',
-          examples: [
-            '/extract/date-range?location=erbil&start_date=2025-01-01&end_date=2025-01-31',
-            '/extract/date-range?location=erbil-avenue&resource=history&start_date=2025-01-15&end_date=2025-02-15',
-            '/extract/date-range?location=duhok&start_date=2024-12-01&end_date=2025-01-15'
-          ],
-          parameters: {
-            location: 'required (erbil, duhok, bahrka, or erbil-avenue)',
-            start_date: 'required (format: YYYY-MM-DD)',
-            end_date: 'required (format: YYYY-MM-DD)',
-            resource: 'required for erbil-avenue (dashboard, history, expected-rent)'
-          }
-        }
-      },
-      odoo: odooService ? {
-        partners: '/odoo/partners',
-        sale_orders: '/odoo/sale_orders',
-        invoices: '/odoo/invoices',
-        pos_orders: '/odoo/pos_orders',
-        pos_payments: '/odoo/pos_payments',
-        pos_summary: '/odoo/pos_summary',
-        pos_order_items: '/odoo/pos_order_items?order_id={id}',
-        pos_order_with_items: '/odoo/pos_orders/{id}/items',
-        inventory: {
-          stock_levels: '/odoo/inventory/stock_levels',
-          movements: '/odoo/inventory/movements',
-          pickings: '/odoo/inventory/pickings',
-          summary: '/odoo/inventory/summary?group_by=product|location'
-        },
-        dashboard: '/odoo/dashboard',
-        generic_model: '/odoo/model/{modelName}',
-        date_range_support: {
-          description: 'All POS, sales, and invoice endpoints support date filtering',
-          parameters: {
-            monthly: 'year={year}&month={month}',
-            quarterly: 'year={year}&quarter={quarter}',
-            custom: 'start_date={YYYY-MM-DD}&end_date={YYYY-MM-DD}'
-          },
-          examples: [
-            '/odoo/pos_orders?year=2025&month=11',
-            '/odoo/sale_orders?year=2025&quarter=4',
-            '/odoo/invoices?start_date=2025-01-01&end_date=2025-01-31'
-          ]
-        }
-      } : 'Odoo not configured'
-    }
-  });
-});
+app.get('/', sendApiIndex);
 
 // Proxy configuration for each TopCare location
 const TOPCARE_APIS = {
@@ -356,6 +264,119 @@ const ERBIL_AVENUE_API = {
       defaultParams: { select: '*' }
     }
   }
+};
+
+const buildApiIndexResponse = () => ({
+  status: 'ok',
+  message: 'Dashboard Proxy Server is running',
+  odoo_configured: !!odooService,
+  database_configured: !!databaseService,
+  cache_configured: !!cacheService,
+  cache_redis_enabled: cacheService?.redisEnabled || false,
+  documentation: {
+    overview: '/',
+    json_format: '/?format=json',
+    climate_api: '/admin/climate',
+    marketing_api: '/api/marketing/projects',
+    mli_operations: '/admin/mli-ops'
+  },
+  endpoints: {
+    topcare: {
+      erbil: '/api/erbil',
+      duhok: '/api/duhok',
+      bahrka: '/api/bahrka'
+    },
+    erbilAvenue: {
+      dashboard: '/erbil-avenue/dashboard',
+      history: '/erbil-avenue/history',
+      expectedRent: '/erbil-avenue/expected-rent'
+    },
+    dataExtraction: {
+      monthly: '/extract/monthly?location={site}',
+      quarterly: '/extract/quarterly?location={site}',
+      dateRange: '/extract/date-range?location={site}'
+    },
+    climate: {
+      list: '/api/climate/projects',
+      stats: '/api/climate/stats',
+      admin: '/admin/climate'
+    },
+    marketing: {
+      projects: '/api/marketing/projects',
+      metrics: '/api/marketing/:projectKey/metrics',
+      data: '/api/marketing/:projectKey/data',
+      stats: '/api/marketing/:projectKey/stats'
+    },
+    mliOperations: {
+      programs: '/api/mli-ops/programs',
+      admin: '/admin/mli-ops',
+      docs: '/public/mli-ops-admin.html'
+    },
+    odoo: odooService ? {
+      partners: '/odoo/partners',
+      sale_orders: '/odoo/sale_orders',
+      invoices: '/odoo/invoices',
+      pos_orders: '/odoo/pos_orders',
+      pos_payments: '/odoo/pos_payments',
+      pos_summary: '/odoo/pos_summary',
+      inventory: '/odoo/inventory/summary'
+    } : 'Odoo not configured',
+    admin: {
+      status: '/admin/status',
+      cache: '/admin/cache/stats',
+      db: '/admin/db/custom-data',
+      web_interface: '/admin'
+    }
+  }
+});
+
+function sendApiIndex(req, res) {
+  const accepts = req.headers['accept'] || '';
+  const acceptsHtml = accepts.includes('text/html');
+  const wantsJson = req.query.format === 'json' || (!acceptsHtml && !req.query.format) || accepts.includes('application/json');
+
+  if (wantsJson) {
+    return res.json(buildApiIndexResponse());
+  }
+
+  return res.sendFile(DOCS_PAGE_PATH);
+}
+
+const formatMliOpsProgram = (program) => {
+  if (!program) {
+    return null;
+  }
+
+  const toNumber = (value) => {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+    const num = Number(value);
+    return Number.isNaN(num) ? null : num;
+  };
+
+  const local = toNumber(program.local_trainer) || 0;
+  const expat = toNumber(program.expat_trainer) || 0;
+  const participants = toNumber(program.number_of_participants);
+  const participantFee = toNumber(program.participant_fee);
+  const computedRevenue = participants && participantFee ? participants * participantFee : null;
+  const totalInput = program.total_revenue_input !== undefined && program.total_revenue_input !== null
+    ? Number(program.total_revenue_input)
+    : null;
+
+  let status = program.status;
+  if (!status) {
+    status = participants && participants > 0 ? 'completed' : 'planned';
+  }
+
+  return {
+    ...program,
+    status,
+    trainers: local + expat,
+    computed_revenue: computedRevenue,
+    final_revenue: totalInput !== null ? totalInput : computedRevenue,
+    revenue_overridden: totalInput !== null && computedRevenue !== null && Math.abs(totalInput - computedRevenue) > 0.01
+  };
 };
 
 // Monthly data extraction endpoint
@@ -1294,6 +1315,129 @@ app.delete('/api/marketing/:projectKey/data', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// ==========================================
+// MLI OPERATIONS API ENDPOINTS
+// ==========================================
+
+app.get('/api/mli-ops/programs', async (_req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const programs = await databaseService.getAllMliOpsPrograms();
+    res.json({
+      success: true,
+      count: programs.length,
+      data: programs.map(formatMliOpsProgram)
+    });
+  } catch (error) {
+    console.error('Error fetching MLI operations programs:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/mli-ops/programs', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const payload = req.body || {};
+    if (!payload.program || !payload.program.trim()) {
+      return res.status(400).json({ success: false, error: 'Program name is required' });
+    }
+
+    const programId = await databaseService.upsertMliOpsProgram(payload);
+    const savedProgram = await databaseService.getMliOpsProgramById(programId);
+
+    res.status(201).json({
+      success: true,
+      data: formatMliOpsProgram(savedProgram)
+    });
+  } catch (error) {
+    console.error('Error saving MLI operations program:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/mli-ops/programs/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const programId = parseInt(req.params.id, 10);
+    if (Number.isNaN(programId)) {
+      return res.status(400).json({ success: false, error: 'Invalid program ID' });
+    }
+
+    const existing = await databaseService.getMliOpsProgramById(programId);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Program not found' });
+    }
+
+    const payload = {
+      ...existing,
+      ...req.body,
+      id: programId,
+      program: (req.body.program || existing.program || '').trim()
+    };
+
+    if (!payload.program) {
+      return res.status(400).json({ success: false, error: 'Program name is required' });
+    }
+
+    await databaseService.upsertMliOpsProgram(payload);
+    const updated = await databaseService.getMliOpsProgramById(programId);
+
+    res.json({
+      success: true,
+      data: formatMliOpsProgram(updated)
+    });
+  } catch (error) {
+    console.error('Error updating MLI operations program:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/mli-ops/programs/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const programId = parseInt(req.params.id, 10);
+    if (Number.isNaN(programId)) {
+      return res.status(400).json({ success: false, error: 'Invalid program ID' });
+    }
+
+    const deleted = await databaseService.deleteMliOpsProgram(programId);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Program not found' });
+    }
+
+    res.json({ success: true, message: 'Program deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting MLI operations program:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/mli-ops/programs', async (_req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    await databaseService.clearMliOpsPrograms();
+    res.json({ success: true, message: 'All programs cleared' });
+  } catch (error) {
+    console.error('Error clearing MLI operations programs:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -2252,6 +2396,11 @@ app.get('/admin/climate', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'climate-admin.html'));
 });
 
+// MLI operations admin interface
+app.get('/admin/mli-ops', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'mli-ops-admin.html'));
+});
+
 // Admin web interface
 app.get('/admin', (req, res) => {
   res.send(`
@@ -2428,109 +2577,7 @@ async function startServer() {
     cacheService = services.cacheService;
     
     // Update health check endpoint to include service status
-    app.get('/', (req, res) => {
-      res.json({
-        status: 'ok',
-        message: 'Dashboard Proxy Server is running',
-        odoo_configured: !!odooService,
-        database_configured: !!databaseService,
-        cache_configured: !!cacheService,
-        cache_redis_enabled: cacheService?.redisEnabled || false,
-        endpoints: {
-          topcare: {
-            erbil: '/api/erbil',
-            duhok: '/api/duhok',
-            bahrka: '/api/bahrka'
-          },
-          erbilAvenue: {
-            dashboard: '/erbil-avenue/dashboard',
-            history: '/erbil-avenue/history',
-            expectedRent: '/erbil-avenue/expected-rent'
-          },
-          dataExtraction: {
-            monthly: {
-              description: 'Extract data for a specific calendar month',
-              examples: [
-                '/extract/monthly?location=erbil&year=2025&month=3',
-                '/extract/monthly?location=erbil-avenue&resource=history&year=2025&month=3',
-                '/extract/monthly?location=duhok (defaults to current month)'
-              ],
-              parameters: {
-                location: 'required (erbil, duhok, bahrka, or erbil-avenue)',
-                year: 'optional (defaults to current year)',
-                month: 'optional (1-12, defaults to current month)',
-                resource: 'required for erbil-avenue (dashboard, history, expected-rent)'
-              }
-            },
-            quarterly: {
-              description: 'Extract data for a specific quarter',
-              examples: [
-                '/extract/quarterly?location=erbil&year=2025&quarter=1',
-                '/extract/quarterly?location=erbil-avenue&resource=history&year=2025&quarter=2',
-                '/extract/quarterly?location=bahrka (defaults to current quarter)'
-              ],
-              parameters: {
-                location: 'required (erbil, duhok, bahrka, or erbil-avenue)',
-                year: 'optional (defaults to current year)',
-                quarter: 'optional (1-4, defaults to current quarter)',
-                resource: 'required for erbil-avenue (dashboard, history, expected-rent)'
-              }
-            },
-            dateRange: {
-              description: 'Extract data for a custom date range',
-              examples: [
-                '/extract/date-range?location=erbil&start_date=2025-01-01&end_date=2025-01-31',
-                '/extract/date-range?location=erbil-avenue&resource=history&start_date=2025-01-15&end_date=2025-02-15',
-                '/extract/date-range?location=duhok&start_date=2024-12-01&end_date=2025-01-15'
-              ],
-              parameters: {
-                location: 'required (erbil, duhok, bahrka, or erbil-avenue)',
-                start_date: 'required (format: YYYY-MM-DD)',
-                end_date: 'required (format: YYYY-MM-DD)',
-                resource: 'required for erbil-avenue (dashboard, history, expected-rent)'
-              }
-            }
-          },
-          odoo: odooService ? {
-            partners: '/odoo/partners',
-            sale_orders: '/odoo/sale_orders',
-            invoices: '/odoo/invoices',
-            pos_orders: '/odoo/pos_orders',
-            pos_payments: '/odoo/pos_payments',
-            pos_summary: '/odoo/pos_summary',
-            pos_order_items: '/odoo/pos_order_items?order_id={id}',
-            pos_order_with_items: '/odoo/pos_orders/{id}/items',
-            inventory: {
-              stock_levels: '/odoo/inventory/stock_levels',
-              movements: '/odoo/inventory/movements',
-              pickings: '/odoo/inventory/pickings',
-              summary: '/odoo/inventory/summary?group_by=product|location'
-            },
-            dashboard: '/odoo/dashboard',
-            generic_model: '/odoo/model/{modelName}',
-            date_range_support: {
-              description: 'All POS, sales, and invoice endpoints support date filtering',
-              parameters: {
-                monthly: 'year={year}&month={month}',
-                quarterly: 'year={year}&quarter={quarter}',
-                custom: 'start_date={YYYY-MM-DD}&end_date={YYYY-MM-DD}'
-              },
-              examples: [
-                '/odoo/pos_orders?year=2025&month=11',
-                '/odoo/sale_orders?year=2025&quarter=4',
-                '/odoo/invoices?start_date=2025-01-01&end_date=2025-01-31'
-              ]
-            }
-          } : 'Odoo not configured',
-          admin: {
-            status: '/admin/status',
-            database: '/admin/db',
-            cache: '/admin/cache',
-            web_interface: '/admin'
-          }
-        }
-      });
-    });
+    app.get('/', sendApiIndex);
 
     // Start server
     app.listen(PORT, () => {

@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLI Dashboard</title>
+    <!-- SheetJS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2canvas for PNG export -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@1.107.0/iconfont/tabler-icons.min.css">
+    <style>
+        /* CSS Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f8f9fa;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+
+        .nav {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+
+
+        /* Content */
+        .content {
+            padding: 30px;
+        }
+
+        /* KPI Cards */
+        #kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .kpi-card {
+            background: white;
+            color: #2c3e50;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+
+        .kpi-card h3 {
+            margin-bottom: 15px;
+            opacity: 0.9;
+            font-weight: 400;
+            font-size: 1.1em;
+        }
+
+        .kpi-card .value {
+            font-size: 2.5em;
+            font-weight: 300;
+            display: block;
+        }
+
+        .kpi-card .subtitle {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        /* Filters Toolbar */
+        #filters {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        #filters label {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-right: 10px;
+        }
+
+        #filters select, #filters input {
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        #filters select:focus, #filters input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        /* Table */
+        #programsTable {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        #programsTable th, #programsTable td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        #programsTable th {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            position: relative;
+        }
+
+        #programsTable th:hover {
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+        }
+
+        #programsTable tbody tr {
+            transition: background-color 0.3s;
+        }
+
+        #programsTable tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 4px;
+            color: white;
+            font-size: 0.8em;
+        }
+
+        .status-completed {
+            background: green;
+        }
+
+        .status-planned {
+            background: gray;
+        }
+
+        .notes {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+
+        .chart-container h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+            font-weight: 600;
+            text-align: center;
+        }
+
+
+
+        /* Export Buttons */
+        #exports {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            margin: 0 10px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-success {
+            background: #27ae60;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            #kpis {
+                grid-template-columns: 1fr;
+            }
+
+            #filters {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+
+            #filters label {
+                margin-right: 0;
+                margin-bottom: 5px;
+            }
+
+
+            #programsTable th, #programsTable td {
+                padding: 10px;
+            }
+
+            .chart-container {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Programs Dashboard</h1>
+            <p>Comprehensive analytics and insights for your training programs</p>
+        </div>
+        <div class="content">
+            <div id="kpis"></div>
+    <div id="filters">
+        <label>Status: <select id="statusFilter">
+            <option value="all">All</option>
+            <option value="completed">Completed</option>
+            <option value="planned">Planned</option>
+        </select></label>
+        <label>Expat Trainer: <select id="expatFilter">
+            <option value="all">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+        </select></label>
+ 
+    </div>
+    <table id="programsTable">
+        <thead>
+            <tr>
+                <th data-sort="program">Program</th>
+                <th data-sort="status">Status</th>
+                <th data-sort="number_of_participants">Participants</th>
+                <th data-sort="start_date">Start Date</th>
+                <th data-sort="end_date">End Date</th>
+                <th data-sort="participant_fee">Participant Fee</th>
+                <th data-sort="final_revenue">Revenue</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <div class="charts-grid">
+        <div class="chart-container">
+            <h3><i class="ti ti-chart-bar"></i> Revenue by Program</h3>
+            <canvas id="chartRevenue"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3><i class="ti ti-users"></i> Trainers by Program</h3>
+            <canvas id="chartTrainers"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3><i class="ti ti-user-check"></i> Participants by Program</h3>
+            <canvas id="chartParticipants"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3><i class="ti ti-gender-male"></i> Male/Female by Program</h3>
+            <canvas id="chartGender"></canvas>
+        </div>
+    </div>
+    <div id="exports">
+        <button id="exportCSV">Export Table to CSV</button>
+        <button id="exportPNG">Download Dashboard as PNG</button>
+        <button id="exportExcel">Generate Enriched Excel</button>
+    </div>
+    <script>
+        // State
+        let state = {
+            rows: [],
+            filters: {
+                status: 'all',
+                expat: 'all'
+            },
+            costOverrides: {}
+        };
+
+        // API functions
+        async function getAllPrograms() {
+            const response = await fetch('/api/programs');
+            return await response.json();
+        }
+
+
+
+        // Load cost overrides from localStorage
+        function loadCostOverrides() {
+            const stored = localStorage.getItem('costOverrides');
+            if (stored) {
+                state.costOverrides = JSON.parse(stored);
+            }
+        }
+
+        // Save cost overrides to localStorage
+        function saveCostOverrides() {
+            localStorage.setItem('costOverrides', JSON.stringify(state.costOverrides));
+        }
+
+        // Utility functions
+        function formatCurrency(value) {
+            return new Intl.NumberFormat(navigator.language, { style: 'currency', currency: 'USD' }).format(value);
+        }
+
+        function parseCurrency(str) {
+            if (!str || str === 'TBC' || str === '-') return null;
+            return parseFloat(str.replace(/[$,]/g, ''));
+        }
+
+
+        // Step 3: Compute derived
+        function computeDerived(rows, costOverrides) {
+            return rows.map(row => {
+                const overrides = costOverrides[row.program] || {};
+                const localRate = overrides.localRate || 150;
+                const expatRate = overrides.expatRate || 400;
+                const venueRate = overrides.venueRate || 100;
+                const materialsRate = overrides.materialsRate || 10;
+        
+                // Compute trainers as sum of local and expat
+                row.trainers = (row.local_trainer || 0) + (row.expat_trainer || 0);
+        
+                // Use stored status, fallback to auto-determination
+                if (!row.status) {
+                    row.status = (row.number_of_participants && row.number_of_participants > 0) ? 'completed' : 'planned';
+                }
+                row.computed_revenue = (row.number_of_participants && row.participant_fee) ? row.number_of_participants * row.participant_fee : null;
+                row.final_revenue = row.total_revenue_input ?? row.computed_revenue;
+                row.revenue_overridden = row.total_revenue_input != null && Math.abs(row.total_revenue_input - row.computed_revenue) > 0.01;
+
+                row.trainer_days = row.duration_days || 0;
+                row.trainer_cost = ((row.local_trainer || 0) * localRate + (row.expat_trainer || 0) * expatRate) * row.trainer_days;
+                row.venue_cost = venueRate * row.trainer_days;
+                row.materials_cost = materialsRate * (row.number_of_participants || 0);
+                row.total_cost = row.trainer_cost + row.venue_cost + row.materials_cost;
+                row.profit = row.status === 'completed' ? row.final_revenue - row.total_cost : null;
+
+                return row;
+            });
+        }
+
+        // Step 5: Render KPIs
+        function renderKPIs(rows) {
+            const completed = rows.filter(r => r.status === 'completed');
+            const totalPrograms = rows.length;
+            const completedPrograms = completed.length;
+            const plannedPrograms = totalPrograms - completedPrograms;
+            const totalParticipants = completed.reduce((sum, r) => sum + (r.number_of_participants || 0), 0);
+            const totalRevenue = completed.reduce((sum, r) => sum + (r.final_revenue || 0), 0);
+            const totalProfit = completed.reduce((sum, r) => sum + (r.profit || 0), 0);
+
+            document.getElementById('kpis').innerHTML = `
+                <div class="kpi-card">
+                    <h3>Total Programs</h3>
+                    <div class="value">${totalPrograms}</div>
+                </div>
+                <div class="kpi-card">
+                    <h3>Completed Programs</h3>
+                    <div class="value">${completedPrograms}</div>
+                </div>
+                <div class="kpi-card">
+                    <h3>Planned Programs</h3>
+                    <div class="value">${plannedPrograms}</div>
+                </div>
+                <div class="kpi-card">
+                    <h3>Total Participants</h3>
+                    <div class="value">${totalParticipants}</div>
+                </div>
+                <div class="kpi-card">
+                    <h3>Total Revenue</h3>
+                    <div class="value">${formatCurrency(totalRevenue)}</div>
+                </div>
+                <div class="kpi-card">
+                    <h3>Total Trainers</h3>
+                    <div class="value">${completed.reduce((sum, r) => sum + (r.trainers || 0), 0)}</div>
+                </div>
+            `;
+        }
+
+        // Step 6: Render Table
+        function renderTable(rows) {
+            const tbody = document.querySelector('#programsTable tbody');
+            tbody.innerHTML = rows.map(row => `
+                <tr data-program="${row.program}">
+                    <td>${row.program}</td>
+                    <td><span class="status-badge status-${row.status}">${row.status}</span></td>
+                    <td>${row.number_of_participants || ''}</td>
+                    <td>${row.start_date || ''}</td>
+                    <td>${row.end_date || ''}</td>
+                    <td>${row.participant_fee ? formatCurrency(row.participant_fee) : ''}</td>
+                    <td>${row.final_revenue ? formatCurrency(row.final_revenue) : ''}</td>
+                    <td class="notes">${row.revenue_overridden ? 'override' : ''} ${getWarnings(row)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function getWarnings(row) {
+            let warnings = [];
+            if (row.number_of_participants > 0 && !row.unit_price) warnings.push('Missing unit price; revenue incomplete');
+            if ((row.local_trainer || row.expat_trainer) && !row.duration_days) warnings.push('Missing duration; costs incomplete');
+            return warnings.join('; ');
+        }
+
+        // Step 9: Render Charts
+        let revenueChart, trainersChart, participantsChart, genderChart;
+
+        function renderCharts(rows) {
+            const completed = rows.filter(r => r.status === 'completed');
+            const labels = completed.map(r => r.program);
+
+            if (revenueChart) revenueChart.destroy();
+            revenueChart = new Chart(document.getElementById('chartRevenue'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Revenue',
+                        data: completed.map(r => r.final_revenue || 0),
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: value => formatCurrency(value)
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => formatCurrency(context.parsed.y)
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (trainersChart) trainersChart.destroy();
+            trainersChart = new Chart(document.getElementById('chartTrainers'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Local Trainers',
+                        data: completed.map(r => r.local_trainer || 0),
+                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1
+                    }, {
+                        label: 'Expat Trainers',
+                        data: completed.map(r => r.expat_trainer || 0),
+                        backgroundColor: 'rgba(155, 89, 182, 0.2)',
+                        borderColor: 'rgba(155, 89, 182, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            stacked: true
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => context.parsed.y + ' ' + context.dataset.label.toLowerCase()
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (participantsChart) participantsChart.destroy();
+            participantsChart = new Chart(document.getElementById('chartParticipants'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Participants',
+                        data: completed.map(r => r.number_of_participants || 0),
+                        backgroundColor: 'rgba(46, 204, 113, 0.2)',
+                        borderColor: 'rgba(46, 204, 113, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => context.parsed.y + ' participants'
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (genderChart) genderChart.destroy();
+            genderChart = new Chart(document.getElementById('chartGender'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Male',
+                        data: completed.map(r => r.male || 0),
+                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1
+                    }, {
+                        label: 'Female',
+                        data: completed.map(r => r.female || 0),
+                        backgroundColor: 'rgba(231, 76, 60, 0.2)',
+                        borderColor: 'rgba(231, 76, 60, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            stacked: true
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => context.parsed.y + ' ' + context.dataset.label.toLowerCase()
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Step 8: Apply Filters
+        function applyFilters(rows, filters) {
+            return rows.filter(row => {
+                if (filters.status !== 'all' && row.status !== filters.status) return false;
+                if (filters.expat === 'yes' && !(row.expat_trainer > 0)) return false;
+                if (filters.expat === 'no' && row.expat_trainer > 0) return false;
+                return true;
+            });
+        }
+
+        // Render All
+        function renderAll() {
+            const filteredRows = applyFilters(state.rows, state.filters);
+            renderKPIs(filteredRows);
+            renderTable(filteredRows);
+            renderCharts(filteredRows);
+        }
+
+        // Load data from API
+        async function loadData() {
+            const programs = await getAllPrograms();
+            state.rows = computeDerived(programs, state.costOverrides);
+            renderAll();
+        }
+
+        // Filters
+        document.getElementById('statusFilter').addEventListener('change', (e) => {
+            state.filters.status = e.target.value;
+            renderAll();
+        });
+        document.getElementById('expatFilter').addEventListener('change', (e) => {
+            state.filters.expat = e.target.value;
+            renderAll();
+        });
+
+        // Table sorting
+        document.querySelectorAll('#programsTable th[data-sort]').forEach(th => {
+            th.addEventListener('click', () => {
+                const key = th.dataset.sort;
+                state.rows.sort((a, b) => {
+                    if (a[key] < b[key]) return -1;
+                    if (a[key] > b[key]) return 1;
+                    return 0;
+                });
+                renderAll();
+            });
+        });
+
+
+
+
+
+        // Exports
+        document.getElementById('exportCSV').addEventListener('click', () => {
+            const filteredRows = applyFilters(state.rows, state.filters);
+            const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(filteredRows));
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `programs_${new Date().toISOString().slice(0,16).replace(/[:-]/g,'')}.csv`;
+            a.click();
+        });
+
+        document.getElementById('exportPNG').addEventListener('click', () => {
+            html2canvas(document.body).then(canvas => {
+                const url = canvas.toDataURL();
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `programs_${new Date().toISOString().slice(0,16).replace(/[:-]/g,'')}.png`;
+                a.click();
+            });
+        });
+
+        document.getElementById('exportExcel').addEventListener('click', () => {
+            const enriched = state.rows.map(row => ({
+                ...row,
+                status: row.status,
+                final_revenue: row.final_revenue,
+                trainer_cost: row.trainer_cost,
+                venue_cost: row.venue_cost,
+                materials_cost: row.materials_cost,
+                total_cost: row.total_cost,
+                profit: row.profit,
+                revenue_overridden: row.revenue_overridden
+            }));
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(enriched);
+            XLSX.utils.book_append_sheet(wb, ws, 'programs_enriched');
+            XLSX.writeFile(wb, `programs_enriched.xlsx`);
+        });
+
+
+
+        // Auto-refresh data every 5 seconds to sync with database changes
+        setInterval(async () => {
+            const programs = await getAllPrograms();
+            state.rows = computeDerived(programs, state.costOverrides);
+            renderAll();
+        }, 5000);
+
+        // Init
+        loadCostOverrides();
+        loadData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proxy Server API Documentation</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      line-height: 1.7;
+    }
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 8px;
+    }
+    header p {
+      opacity: 0.8;
+      margin: 0;
+    }
+    section {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.4);
+    }
+    section h2 {
+      margin-top: 0;
+      font-size: 1.5rem;
+    }
+    code {
+      font-family: SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+    pre {
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 12px;
+      padding: 16px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 0.95rem;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(226, 232, 240, 0.2);
+      vertical-align: top;
+    }
+    th {
+      text-align: left;
+      font-weight: 600;
+      color: #60a5fa;
+    }
+    a {
+      color: #93c5fd;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(59, 130, 246, 0.15);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      margin-right: 8px;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    @media (max-width: 600px) {
+      header h1 {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Dashboard Proxy Server</h1>
+      <p>Unified documentation for Climate, Marketing, MLI Operations, Odoo, and proxy endpoints.</p>
+      <p style="margin-top:8px;font-size:0.95rem;opacity:0.7;">Need JSON instead? Append <code>?format=json</code> or send <code>Accept: application/json</code>.</p>
+    </header>
+
+    <section>
+      <h2>Authentication</h2>
+      <p>All endpoints (except <code>GET /</code>, <code>OPTIONS</code>, and <code>/admin/token-validate</code>) require a bearer token.</p>
+      <pre><code>curl -H "Authorization: Bearer $ADMIN_TOKEN" https://proxy.krdholding.dev/api/climate/projects</code></pre>
+      <ul>
+        <li>Set <code>ADMIN_TOKEN</code> in the environment or Coolify secret store.</li>
+        <li>Browsers can attach the header with an extension such as ModHeader when using the admin UIs.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Core APIs</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Endpoints</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Climate Projects</strong></td>
+            <td>
+              <code>GET /api/climate/projects</code><br>
+              <code>POST /api/climate/projects</code><br>
+              <code>PUT /api/climate/projects/:id</code><br>
+              <code>DELETE /api/climate/projects/:id</code><br>
+              <code>GET /api/climate/stats</code>
+            </td>
+            <td>SQLite-backed CRUD plus stats. Admin UI: <code>/admin/climate</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Marketing (MLI)</strong></td>
+            <td>
+              <code>GET /api/marketing/projects</code><br>
+              <code>GET /api/marketing/:projectKey/metrics</code><br>
+              <code>GET /api/marketing/:projectKey/data</code><br>
+              <code>POST /api/marketing/:projectKey/data/bulk</code><br>
+              <code>DELETE /api/marketing/:projectKey/data</code>
+            </td>
+            <td>Manages marketing metrics, daily series, and bulk uploads.</td>
+          </tr>
+          <tr>
+            <td><strong>MLI Operations</strong></td>
+            <td>
+              <code>GET /api/mli-ops/programs</code><br>
+              <code>POST /api/mli-ops/programs</code><br>
+              <code>PUT /api/mli-ops/programs/:id</code><br>
+              <code>DELETE /api/mli-ops/programs/:id</code><br>
+              <code>DELETE /api/mli-ops/programs</code>
+            </td>
+            <td>Training program CRUD with derived revenue metrics. Admin UI: <code>/admin/mli-ops</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Odoo</strong></td>
+            <td>
+              <code>GET /odoo/partners</code>, <code>/odoo/sale_orders</code>, <code>/odoo/invoices</code>, etc.<br>
+              <code>GET /odoo/model/:modelName</code>
+            </td>
+            <td>XML-RPC bridge using credentials from environment variables. Supports date filters on sales/POS endpoints.</td>
+          </tr>
+          <tr>
+            <td><strong>Data Extraction</strong></td>
+            <td>
+              <code>GET /extract/monthly?location=erbil&amp;year={Y}&amp;month={M}</code><br>
+              <code>GET /extract/quarterly?location=erbil-avenue&amp;resource=history&amp;quarter=3</code><br>
+              <code>GET /extract/date-range?location=duhok&amp;start_date=YYYY-MM-DD&amp;end_date=YYYY-MM-DD</code>
+            </td>
+            <td>Produces normalized data for TopCare and Erbil Avenue reporting windows.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>MLI Operations Payload</h2>
+      <div class="grid">
+        <div class="card">
+          <p class="pill">Sample Request</p>
+          <pre><code>POST /api/mli-ops/programs
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+
+{
+  "program": "Leadership Essentials",
+  "number_of_participants": 18,
+  "male": 9,
+  "female": 9,
+  "local_trainer": 1,
+  "expat_trainer": 1,
+  "duration_days": 3,
+  "participant_fee": 250,
+  "non_monetary_revenue": 500,
+  "start_date": "2025-02-10",
+  "end_date": "2025-02-12",
+  "status": "auto",
+  "notes": "Pilot cohort"
+}</code></pre>
+        </div>
+        <div class="card">
+          <p class="pill">Response</p>
+          <pre><code>{
+  "success": true,
+  "data": {
+    "id": 7,
+    "program": "Leadership Essentials",
+    "status": "completed",
+    "trainers": 2,
+    "final_revenue": 4500,
+    "computed_revenue": 4500,
+    "revenue_overridden": false,
+    ...
+  }
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>TopCare &amp; Erbil Avenue Proxy</h2>
+      <p>The proxy forwards requests to location-specific dashboards while injecting API keys and enforcing rate limits.</p>
+      <ul>
+        <li><code>GET /api/erbil</code>, <code>/api/duhok</code>, <code>/api/bahrka</code></li>
+        <li><code>GET /api/erbil/dashboard/{path}</code> proxies nested routes</li>
+        <li><code>GET /erbil-avenue/:resource</code> wraps Supabase views (<code>dashboard</code>, <code>history</code>, <code>expected-rent</code>)</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Admin &amp; Monitoring</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Route</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/admin/status</code></td>
+            <td>Runtime metrics (uptime, Node version, cache/db stats).</td>
+          </tr>
+          <tr>
+            <td><code>/admin/cache/*</code></td>
+            <td>Redis stats, health, and pattern-based cache clearing.</td>
+          </tr>
+          <tr>
+            <td><code>/admin/db/*</code></td>
+            <td>Browse custom data, configurations, and logs.</td>
+          </tr>
+          <tr>
+            <td><code>/admin</code></td>
+            <td>Web control panel with live controls.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Helpful Tips</h2>
+      <ul>
+        <li>Need machine-readable output? Use <code>/ ?format=json</code> or include <code>Accept: application/json</code>.</li>
+        <li>Initial data loads: run <code>node init-database.js</code> to import climate, marketing, and MLI Ops seed datasets.</li>
+        <li>When deploying on Coolify, map persistent volumes for <code>/app/data</code> (database) and <code>/app/uploads</code> (Excel imports).</li>
+        <li>Detailed references live in the repository: <code>CLIMATE_API.md</code>, <code>MARKETING_API.md</code>, and <code>MLI_OPERATIONS_API.md</code>.</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>

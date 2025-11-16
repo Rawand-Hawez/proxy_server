@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programs Database MLI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@1.107.0/iconfont/tabler-icons.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .nav {
+            background: #34495e;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            transition: background 0.3s;
+        }
+
+        .nav a:hover {
+            background: #2c3e50;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #3498db;
+        }
+
+        .stat-card h3 {
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .status-completed {
+            background: #27ae60;
+        }
+
+        .status-planned {
+            background: #95a5a6;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .modal-header h2 {
+            color: #2c3e50;
+        }
+
+        .close {
+            cursor: pointer;
+            font-size: 1.8em;
+            color: #7f8c8d;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #e74c3c;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ecf0f1;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-actions {
+            text-align: right;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #27ae60;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1001;
+            animation: slideInRight 0.3s;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nav {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .actions {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Programs Database</h1>
+            <p>Manage your training programs data</p>
+        </div>
+
+        <div class="nav">
+            <a href="index.html">← Back to Dashboard</a>
+            <div class="actions">
+                <button class="btn btn-primary" id="addProgram">
+                    <i class="ti ti-plus"></i> Add Program
+                </button>
+                <button class="btn btn-success" id="importExcel">
+                    <i class="ti ti-file-upload"></i> Import Excel
+                </button>
+                <button class="btn btn-danger" id="clearAll">
+                    <i class="ti ti-trash"></i> Clear All
+                </button>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>Total Programs</h3>
+                    <div class="value" id="totalPrograms">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Completed</h3>
+                    <div class="value" id="completedPrograms">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Planned</h3>
+                    <div class="value" id="plannedPrograms">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Revenue</h3>
+                    <div class="value" id="totalRevenue">$0</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="programsTable">
+                    <thead>
+                        <tr>
+                            <th>Program</th>
+                            <th>Status</th>
+                            <th>Participants</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Participant Fee</th>
+                            <th>Revenue</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="programModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Add Program</h2>
+                <span class="close">&times;</span>
+            </div>
+            <form id="programForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="formProgram">Program Name *</label>
+                        <input type="text" id="formProgram" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="formParticipants">Number of Participants</label>
+                        <input type="number" id="formParticipants">
+                    </div>
+                    <div class="form-group">
+                        <label for="formMale">Male</label>
+                        <input type="number" id="formMale">
+                    </div>
+                    <div class="form-group">
+                        <label for="formFemale">Female</label>
+                        <input type="number" id="formFemale">
+                    </div>
+                    <div class="form-group">
+                        <label for="formLocalTrainer">Local Trainer</label>
+                        <input type="number" id="formLocalTrainer">
+                    </div>
+                    <div class="form-group">
+                        <label for="formExpatTrainer">Expat Trainer</label>
+                        <input type="number" id="formExpatTrainer">
+                    </div>
+                    <div class="form-group">
+                        <label for="formStartDate">Start Date</label>
+                        <input type="date" id="formStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="formEndDate">End Date</label>
+                        <input type="date" id="formEndDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="formStatus">Status</label>
+                        <select id="formStatus">
+                            <option value="auto">Auto (based on dates)</option>
+                            <option value="planned">Planned</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="formParticipantFee">Participant Fee ($)</label>
+                        <input type="number" step="0.01" id="formParticipantFee">
+                    </div>
+                    <div class="form-group">
+                        <label for="formNonMonetaryRevenue">Non-Monetary Revenue ($)</label>
+                        <input type="number" step="0.01" id="formNonMonetaryRevenue">
+                    </div>
+                    <div class="form-group">
+                        <label for="formActualRevenue">Actual Revenue ($)</label>
+                        <input type="number" step="0.01" id="formActualRevenue">
+                    </div>
+                    <div class="form-group">
+                        <label for="formTotalRevenue">Total Revenue ($)</label>
+                        <input type="number" step="0.01" id="formTotalRevenue" readonly>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-danger" id="deleteBtn" style="display:none;">Delete</button>
+                    <button type="submit" class="btn btn-primary">Save Program</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="importModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Import from Excel</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div style="text-align: center; padding: 30px;">
+                <input type="file" id="excelFile" accept=".xlsx,.xls" style="margin-bottom: 20px;">
+                <br>
+                <button class="btn btn-primary" id="importBtn">Import Data</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API functions
+        async function getAllPrograms() {
+            const response = await fetch('/api/programs');
+            return await response.json();
+        }
+
+        async function saveProgram(program) {
+            const response = await fetch('/api/programs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(program)
+            });
+            return await response.json();
+        }
+
+        async function deleteProgram(programName) {
+            const response = await fetch(`/api/programs/${encodeURIComponent(programName)}`, {
+                method: 'DELETE'
+            });
+            return await response.json();
+        }
+
+        async function clearAllPrograms() {
+            const response = await fetch('/api/programs', {
+                method: 'DELETE'
+            });
+            return await response.json();
+        }
+
+        async function importExcel(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            const response = await fetch('/api/import', {
+                method: 'POST',
+                body: formData
+            });
+            return await response.json();
+        }
+
+        // Utility functions
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
+        }
+
+        function computeDerived(rows) {
+            return rows.map(row => {
+                // Compute trainers as sum of local and expat
+                row.trainers = (row.local_trainer || 0) + (row.expat_trainer || 0);
+
+                // Use stored status, fallback to auto-determination
+                if (!row.status) {
+                    row.status = (row.number_of_participants && row.number_of_participants > 0) ? 'completed' : 'planned';
+                }
+                row.computed_revenue = (row.number_of_participants && row.participant_fee) ? row.number_of_participants * row.participant_fee : null;
+                row.final_revenue = row.total_revenue_input ?? row.computed_revenue;
+                return row;
+            });
+        }
+
+        // Render functions
+        async function renderPrograms() {
+            const programs = await getAllPrograms();
+            const derived = computeDerived(programs);
+
+            // Update stats
+            document.getElementById('totalPrograms').textContent = programs.length;
+            document.getElementById('completedPrograms').textContent = derived.filter(p => p.status === 'completed').length;
+            document.getElementById('plannedPrograms').textContent = derived.filter(p => p.status === 'planned').length;
+            document.getElementById('totalRevenue').textContent = formatCurrency(
+                derived.filter(p => p.status === 'completed').reduce((sum, p) => sum + (p.final_revenue || 0), 0)
+            );
+
+            // Render table
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = derived.map(program => `
+                <tr>
+                    <td>${program.program}</td>
+                    <td><span class="status-badge status-${program.status}">${program.status}</span></td>
+                    <td>${program.number_of_participants || ''}</td>
+                    <td>${program.start_date || ''}</td>
+                    <td>${program.end_date || ''}</td>
+                    <td>${program.participant_fee ? formatCurrency(program.participant_fee) : ''}</td>
+                    <td>${program.final_revenue ? formatCurrency(program.final_revenue) : ''}</td>
+                    <td>
+                        <button class="btn btn-primary" onclick="editProgram('${program.program}')">Edit</button>
+                        <button class="btn btn-danger" onclick="confirmDelete('${program.program}')">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Modal functions
+        function openModal(program = null) {
+            const modal = document.getElementById('programModal');
+            const form = document.getElementById('programForm');
+            const title = document.getElementById('modalTitle');
+            const deleteBtn = document.getElementById('deleteBtn');
+
+            if (program) {
+                title.textContent = 'Edit Program';
+                document.getElementById('formProgram').value = program.program;
+                document.getElementById('formParticipants').value = program.number_of_participants || '';
+                document.getElementById('formMale').value = program.male || '';
+                document.getElementById('formFemale').value = program.female || '';
+                document.getElementById('formLocalTrainer').value = program.local_trainer || '';
+                document.getElementById('formExpatTrainer').value = program.expat_trainer || '';
+                document.getElementById('formStartDate').value = program.start_date || '';
+                document.getElementById('formEndDate').value = program.end_date || '';
+                document.getElementById('formStatus').value = program.status || 'auto';
+                document.getElementById('formParticipantFee').value = program.participant_fee || '';
+                document.getElementById('formNonMonetaryRevenue').value = program.non_monetary_revenue || '';
+                document.getElementById('formActualRevenue').value = program.actual_revenue || '';
+                document.getElementById('formTotalRevenue').value = program.total_revenue_input || '';
+                deleteBtn.style.display = 'inline-block';
+            } else {
+                title.textContent = 'Add Program';
+                form.reset();
+                deleteBtn.style.display = 'none';
+            }
+
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('programModal').style.display = 'none';
+            document.getElementById('importModal').style.display = 'none';
+        }
+
+        // Global functions for onclick
+        window.editProgram = async function(programName) {
+            const programs = await getAllPrograms();
+            const program = programs.find(p => p.program === programName);
+            if (program) openModal(program);
+        };
+
+        window.confirmDelete = function(programName) {
+            if (confirm(`Are you sure you want to delete "${programName}"?`)) {
+                deleteProgram(programName).then(() => {
+                    renderPrograms();
+                    showToast('Program deleted successfully', 'success');
+                });
+            }
+        };
+
+        // Toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', async () => {
+            renderPrograms();
+        });
+
+        document.getElementById('addProgram').addEventListener('click', () => openModal());
+
+        // Auto-calculate total revenue when inputs change
+        function updateTotalRevenue() {
+            const participantFee = parseFloat(document.getElementById('formParticipantFee').value) || 0;
+            const participants = parseInt(document.getElementById('formParticipants').value) || 0;
+            const nonMonetaryRevenue = parseFloat(document.getElementById('formNonMonetaryRevenue').value) || 0;
+            const actualRevenue = parseFloat(document.getElementById('formActualRevenue').value) || 0;
+            const totalRevenue = (participantFee * participants) + nonMonetaryRevenue + actualRevenue;
+            document.getElementById('formTotalRevenue').value = totalRevenue.toFixed(2);
+        }
+
+        document.getElementById('formParticipantFee').addEventListener('input', updateTotalRevenue);
+        document.getElementById('formParticipants').addEventListener('input', updateTotalRevenue);
+        document.getElementById('formNonMonetaryRevenue').addEventListener('input', updateTotalRevenue);
+        document.getElementById('formActualRevenue').addEventListener('input', updateTotalRevenue);
+
+        document.getElementById('programForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const startDate = document.getElementById('formStartDate').value;
+            const endDate = document.getElementById('formEndDate').value;
+            const statusInput = document.getElementById('formStatus').value;
+            const participantFee = parseFloat(document.getElementById('formParticipantFee').value) || null;
+            const participants = parseInt(document.getElementById('formParticipants').value) || null;
+            const localTrainer = parseInt(document.getElementById('formLocalTrainer').value) || 0;
+            const expatTrainer = parseInt(document.getElementById('formExpatTrainer').value) || 0;
+            const totalTrainers = localTrainer + expatTrainer;
+            const nonMonetaryRevenue = parseFloat(document.getElementById('formNonMonetaryRevenue').value) || 0;
+            const actualRevenue = parseFloat(document.getElementById('formActualRevenue').value) || 0;
+            const totalRevenue = (participantFee && participants ? participantFee * participants : 0) + nonMonetaryRevenue + actualRevenue;
+
+            // Determine status based on dates if auto
+            let status = statusInput;
+            if (statusInput === 'auto' && startDate) {
+                const today = new Date().toISOString().split('T')[0];
+                status = startDate > today ? 'planned' : 'completed';
+            }
+
+            const program = {
+                program: document.getElementById('formProgram').value,
+                number_of_participants: participants,
+                male: parseInt(document.getElementById('formMale').value) || null,
+                female: parseInt(document.getElementById('formFemale').value) || null,
+                trainers: totalTrainers,
+                local_trainer: localTrainer,
+                expat_trainer: expatTrainer,
+                start_date: startDate || null,
+                end_date: endDate || null,
+                status: status,
+                participant_fee: participantFee,
+                non_monetary_revenue: nonMonetaryRevenue,
+                actual_revenue: actualRevenue,
+                total_revenue_input: totalRevenue
+            };
+
+            try {
+                await saveProgram(program);
+                closeModal();
+                renderPrograms();
+                showToast('Program saved successfully');
+            } catch (error) {
+                console.error('Error saving program:', error);
+                showToast('Error saving program', 'error');
+            }
+        });
+
+        document.getElementById('deleteBtn').addEventListener('click', async () => {
+            const programName = document.getElementById('formProgram').value;
+            if (confirm(`Are you sure you want to delete "${programName}"?`)) {
+                try {
+                    await deleteProgram(programName);
+                    closeModal();
+                    renderPrograms();
+                    showToast('Program deleted successfully');
+                } catch (error) {
+                    console.error('Error deleting program:', error);
+                }
+            }
+        });
+
+        document.querySelectorAll('.close').forEach(close => {
+            close.addEventListener('click', closeModal);
+        });
+
+        document.getElementById('importExcel').addEventListener('click', () => {
+            document.getElementById('importModal').style.display = 'block';
+        });
+
+        document.getElementById('importBtn').addEventListener('click', async () => {
+            const file = document.getElementById('excelFile').files[0];
+            if (!file) return;
+
+            try {
+                const result = await importExcel(file);
+                closeModal();
+                renderPrograms();
+                showToast(`Imported ${result.imported} programs successfully`);
+            } catch (error) {
+                console.error('Import error:', error);
+                showToast('Error importing data', 'error');
+            }
+        });
+
+        document.getElementById('clearAll').addEventListener('click', async () => {
+            if (confirm('Are you sure you want to delete ALL programs? This cannot be undone.')) {
+                try {
+                    await clearAllPrograms();
+                    renderPrograms();
+                    showToast('All programs cleared');
+                } catch (error) {
+                    console.error('Error clearing programs:', error);
+                }
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</body>
+</html>
