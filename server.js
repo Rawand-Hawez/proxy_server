@@ -194,10 +194,13 @@ const limiter = rateLimit({
   }
 });
 
-// Apply rate limiting and authentication to API endpoints
-app.use('/api/', limiter, authenticateToken);
-app.use('/odoo/', limiter, authenticateToken);
-app.use('/extract/', limiter, authenticateToken);
+// Apply rate limiting to core API groups (authentication is enforced globally below)
+app.use('/api/', limiter);
+app.use('/odoo/', limiter);
+app.use('/extract/', limiter);
+
+// Global authentication middleware to protect every endpoint
+app.use(authenticateToken);
 
 app.use(express.json());
 
