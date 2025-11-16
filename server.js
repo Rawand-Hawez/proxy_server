@@ -201,6 +201,9 @@ app.use('/extract/', limiter, authenticateToken);
 
 app.use(express.json());
 
+// Serve static files from public directory
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
 // Health check endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -718,6 +721,562 @@ app.get('/erbil-avenue/:resource', authenticateToken, async (req, res) => {
     }
   }
 });
+
+// ==========================================
+// Climate Projects API Endpoints
+// ==========================================
+
+// Get all climate projects
+app.get('/api/climate/projects', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const { limit, offset } = req.query;
+    const projects = await databaseService.getAllClimateProjects(
+      parseInt(limit) || 1000,
+      parseInt(offset) || 0
+    );
+
+    res.json({
+      success: true,
+      count: projects.length,
+      data: projects
+    });
+  } catch (error) {
+    console.error('Error fetching climate projects:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get climate project by ID
+app.get('/api/climate/projects/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const project = await databaseService.getClimateProjectById(parseInt(req.params.id));
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: project
+    });
+  } catch (error) {
+    console.error('Error fetching climate project:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get climate project statistics
+app.get('/api/climate/stats', async (_req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const stats = await databaseService.getClimateProjectStats();
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Error fetching climate stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Create climate project
+app.post('/api/climate/projects', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const projectData = req.body;
+
+    // Validate required fields
+    const requiredFields = ['project', 'amount', 'unit', 'duration', 'status', 'location', 'partner'];
+    const missingFields = requiredFields.filter(field => !projectData[field]);
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
+
+    const projectId = await databaseService.createClimateProject(projectData);
+
+    res.status(201).json({
+      success: true,
+      message: 'Climate project created successfully',
+      id: projectId
+    });
+  } catch (error) {
+    console.error('Error creating climate project:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Update climate project
+app.put('/api/climate/projects/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const projectId = parseInt(req.params.id);
+    const projectData = req.body;
+
+    // Validate required fields
+    const requiredFields = ['project', 'amount', 'unit', 'duration', 'status', 'location', 'partner'];
+    const missingFields = requiredFields.filter(field => !projectData[field]);
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
+
+    const updated = await databaseService.updateClimateProject(projectId, projectData);
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Climate project updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating climate project:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Delete climate project
+app.delete('/api/climate/projects/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const projectId = parseInt(req.params.id);
+    const deleted = await databaseService.deleteClimateProject(projectId);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Climate project deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting climate project:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==========================================
+// Marketing Data API Endpoints
+// ==========================================
+
+// Get all marketing projects
+app.get('/api/marketing/projects', async (_req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const projects = await databaseService.getAllMarketingProjects();
+    res.json({
+      success: true,
+      count: projects.length,
+      data: projects
+    });
+  } catch (error) {
+    console.error('Error fetching marketing projects:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Create marketing project
+app.post('/api/marketing/projects', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const { projectKey, projectName, description } = req.body;
+    if (!projectKey || !projectName) {
+      return res.status(400).json({
+        success: false,
+        error: 'projectKey and projectName are required'
+      });
+    }
+
+    const projectId = await databaseService.createMarketingProject({
+      projectKey,
+      projectName,
+      description
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Marketing project created successfully',
+      id: projectId
+    });
+  } catch (error) {
+    console.error('Error creating marketing project:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get marketing project by key
+app.get('/api/marketing/projects/:projectKey', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const project = await databaseService.getMarketingProjectByKey(req.params.projectKey);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: project
+    });
+  } catch (error) {
+    console.error('Error fetching marketing project:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get metrics for a project
+app.get('/api/marketing/:projectKey/metrics', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const project = await databaseService.getMarketingProjectByKey(req.params.projectKey);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    const metrics = await databaseService.getMarketingMetricsByProject(project.id);
+    res.json({
+      success: true,
+      count: metrics.length,
+      data: metrics
+    });
+  } catch (error) {
+    console.error('Error fetching marketing metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Create metric for a project
+app.post('/api/marketing/:projectKey/metrics', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const project = await databaseService.getMarketingProjectByKey(req.params.projectKey);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    const { metricKey, metricLabel, category } = req.body;
+    if (!metricKey || !metricLabel) {
+      return res.status(400).json({
+        success: false,
+        error: 'metricKey and metricLabel are required'
+      });
+    }
+
+    const metricId = await databaseService.createMarketingMetric({
+      projectId: project.id,
+      metricKey,
+      metricLabel,
+      category
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Metric created successfully',
+      id: metricId
+    });
+  } catch (error) {
+    console.error('Error creating marketing metric:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get time-series data for a project
+app.get('/api/marketing/:projectKey/data', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const project = await databaseService.getMarketingProjectByKey(req.params.projectKey);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    const { from, to, grouped } = req.query;
+    if (!from || !to) {
+      return res.status(400).json({
+        success: false,
+        error: 'from and to date parameters are required (YYYY-MM-DD)'
+      });
+    }
+
+    let data;
+    if (grouped === 'true') {
+      data = await databaseService.getMarketingDataGroupedByMetric(project.id, from, to);
+    } else {
+      data = await databaseService.getMarketingData(project.id, from, to);
+    }
+
+    res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching marketing data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get statistics for a project
+app.get('/api/marketing/:projectKey/stats', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const project = await databaseService.getMarketingProjectByKey(req.params.projectKey);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    const { from, to } = req.query;
+    if (!from || !to) {
+      return res.status(400).json({
+        success: false,
+        error: 'from and to date parameters are required (YYYY-MM-DD)'
+      });
+    }
+
+    const stats = await databaseService.getMarketingStats(project.id, from, to);
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Error fetching marketing stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Bulk upload marketing data
+app.post('/api/marketing/:projectKey/data/bulk', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const project = await databaseService.getMarketingProjectByKey(req.params.projectKey);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    const { data } = req.body;
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'data array is required and must not be empty'
+      });
+    }
+
+    // Validate and transform data
+    const dataPoints = [];
+    for (const item of data) {
+      if (!item.metricKey || !item.date || item.value === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: 'Each data item must have metricKey, date, and value'
+        });
+      }
+
+      // Get metric ID
+      const metric = await databaseService.getMarketingMetricByKey(project.id, item.metricKey);
+      if (!metric) {
+        return res.status(400).json({
+          success: false,
+          error: `Metric not found: ${item.metricKey}`
+        });
+      }
+
+      dataPoints.push({
+        projectId: project.id,
+        metricId: metric.id,
+        date: item.date,
+        value: parseFloat(item.value)
+      });
+    }
+
+    const count = await databaseService.bulkUpsertMarketingData(dataPoints);
+
+    res.json({
+      success: true,
+      message: `Successfully uploaded ${count} data points`,
+      count
+    });
+  } catch (error) {
+    console.error('Error bulk uploading marketing data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Delete marketing data point
+app.delete('/api/marketing/:projectKey/data', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ error: 'Database service not available' });
+    }
+
+    const project = await databaseService.getMarketingProjectByKey(req.params.projectKey);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        error: 'Project not found'
+      });
+    }
+
+    const { metricKey, date } = req.query;
+    if (!metricKey || !date) {
+      return res.status(400).json({
+        success: false,
+        error: 'metricKey and date query parameters are required'
+      });
+    }
+
+    const metric = await databaseService.getMarketingMetricByKey(project.id, metricKey);
+    if (!metric) {
+      return res.status(404).json({
+        success: false,
+        error: 'Metric not found'
+      });
+    }
+
+    const deleted = await databaseService.deleteMarketingData(project.id, metric.id, date);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Data point not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Data point deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting marketing data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ==========================================
+// TopCare API Proxy Endpoints
+// ==========================================
 
 // Generic proxy endpoint - catch all paths after location
 app.get('/api/:location/*', async (req, res) => {
@@ -1663,6 +2222,11 @@ app.get('/admin/logs', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// Climate projects admin interface
+app.get('/admin/climate', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'climate-admin.html'));
 });
 
 // Admin web interface

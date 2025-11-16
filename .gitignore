@@ -1,4 +1,39 @@
+# Environment variables
 .env
+.env.local
+.env.*.local
+
+# Claude
 .claude
-node_modules
-docs
+
+# Dependencies
+node_modules/
+
+# Documentation
+docs/
+
+# Database files
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/

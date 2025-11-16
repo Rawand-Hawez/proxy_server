@@ -90,6 +90,60 @@ class DatabaseService {
         status TEXT NOT NULL,
         error_message TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Climate projects table
+      `CREATE TABLE IF NOT EXISTS climate_projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        unit TEXT NOT NULL,
+        duration TEXT NOT NULL,
+        status TEXT NOT NULL,
+        location TEXT NOT NULL,
+        partner TEXT NOT NULL,
+        direct_beneficiary INTEGER NOT NULL DEFAULT 0,
+        indirect_beneficiary INTEGER NOT NULL DEFAULT 0,
+        environmental_outcome TEXT,
+        brief TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Marketing projects table
+      `CREATE TABLE IF NOT EXISTS marketing_projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_key TEXT UNIQUE NOT NULL,
+        project_name TEXT NOT NULL,
+        description TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Marketing metrics definitions
+      `CREATE TABLE IF NOT EXISTS marketing_metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        metric_key TEXT NOT NULL,
+        metric_label TEXT NOT NULL,
+        category TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES marketing_projects(id) ON DELETE CASCADE,
+        UNIQUE(project_id, metric_key)
+      )`,
+
+      // Marketing daily data (time series)
+      `CREATE TABLE IF NOT EXISTS marketing_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        metric_id INTEGER NOT NULL,
+        date DATE NOT NULL,
+        value REAL NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES marketing_projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (metric_id) REFERENCES marketing_metrics(id) ON DELETE CASCADE,
+        UNIQUE(project_id, metric_id, date)
       )`
     ];
 
@@ -390,7 +444,7 @@ class DatabaseService {
       const stats = {};
       
       // Count records in each table
-      const tables = ['api_cache', 'custom_data', 'api_logs', 'app_config', 'user_sessions', 'sync_logs'];
+      const tables = ['api_cache', 'custom_data', 'api_logs', 'app_config', 'user_sessions', 'sync_logs', 'climate_projects', 'marketing_projects', 'marketing_metrics', 'marketing_data'];
       
       for (const table of tables) {
         const result = await this.getQuery(`SELECT COUNT(*) as count FROM ${table}`);
@@ -436,6 +490,436 @@ class DatabaseService {
     } catch (error) {
       console.error('Error during cleanup:', error);
       return false;
+    }
+  }
+
+  // Climate Projects operations
+  async createClimateProject(projectData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO climate_projects (
+          project, amount, unit, duration, status, location, partner,
+          direct_beneficiary, indirect_beneficiary, environmental_outcome, brief,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [
+          projectData.project,
+          projectData.amount,
+          projectData.unit,
+          projectData.duration,
+          projectData.status,
+          projectData.location,
+          projectData.partner,
+          projectData.directBeneficiary || 0,
+          projectData.indirectBeneficiary || 0,
+          projectData.environmentalOutcome || '',
+          projectData.brief || ''
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating climate project:', error);
+      throw error;
+    }
+  }
+
+  async getAllClimateProjects(limit = 1000, offset = 0) {
+    try {
+      const projects = await this.allQuery(
+        `SELECT * FROM climate_projects
+         ORDER BY id ASC
+         LIMIT ? OFFSET ?`,
+        [limit, offset]
+      );
+
+      return projects.map(p => ({
+        id: p.id,
+        project: p.project,
+        amount: p.amount,
+        unit: p.unit,
+        duration: p.duration,
+        status: p.status,
+        location: p.location,
+        partner: p.partner,
+        directBeneficiary: p.direct_beneficiary,
+        indirectBeneficiary: p.indirect_beneficiary,
+        environmentalOutcome: p.environmental_outcome,
+        brief: p.brief,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at
+      }));
+    } catch (error) {
+      console.error('Error getting climate projects:', error);
+      throw error;
+    }
+  }
+
+  async getClimateProjectById(id) {
+    try {
+      const p = await this.getQuery(
+        `SELECT * FROM climate_projects WHERE id = ?`,
+        [id]
+      );
+
+      if (!p) return null;
+
+      return {
+        id: p.id,
+        project: p.project,
+        amount: p.amount,
+        unit: p.unit,
+        duration: p.duration,
+        status: p.status,
+        location: p.location,
+        partner: p.partner,
+        directBeneficiary: p.direct_beneficiary,
+        indirectBeneficiary: p.indirect_beneficiary,
+        environmentalOutcome: p.environmental_outcome,
+        brief: p.brief,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at
+      };
+    } catch (error) {
+      console.error('Error getting climate project:', error);
+      throw error;
+    }
+  }
+
+  async updateClimateProject(id, projectData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE climate_projects SET
+          project = ?,
+          amount = ?,
+          unit = ?,
+          duration = ?,
+          status = ?,
+          location = ?,
+          partner = ?,
+          direct_beneficiary = ?,
+          indirect_beneficiary = ?,
+          environmental_outcome = ?,
+          brief = ?,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          projectData.project,
+          projectData.amount,
+          projectData.unit,
+          projectData.duration,
+          projectData.status,
+          projectData.location,
+          projectData.partner,
+          projectData.directBeneficiary || 0,
+          projectData.indirectBeneficiary || 0,
+          projectData.environmentalOutcome || '',
+          projectData.brief || '',
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating climate project:', error);
+      throw error;
+    }
+  }
+
+  async deleteClimateProject(id) {
+    try {
+      const result = await this.runQuery(
+        `DELETE FROM climate_projects WHERE id = ?`,
+        [id]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting climate project:', error);
+      throw error;
+    }
+  }
+
+  async getClimateProjectStats() {
+    try {
+      const stats = await this.getQuery(`
+        SELECT
+          COUNT(*) as total_projects,
+          SUM(direct_beneficiary) as total_direct_beneficiaries,
+          SUM(indirect_beneficiary) as total_indirect_beneficiaries,
+          SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) as done_count,
+          SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) as in_progress_count
+        FROM climate_projects
+      `);
+
+      return {
+        totalProjects: stats.total_projects || 0,
+        directBeneficiaries: stats.total_direct_beneficiaries || 0,
+        indirectBeneficiaries: stats.total_indirect_beneficiaries || 0,
+        projectsByStatus: {
+          done: stats.done_count || 0,
+          inProgress: stats.in_progress_count || 0
+        }
+      };
+    } catch (error) {
+      console.error('Error getting climate project stats:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // Marketing Data Operations
+  // ==========================================
+
+  // Project operations
+  async createMarketingProject(projectData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO marketing_projects (project_key, project_name, description, updated_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+        [projectData.projectKey, projectData.projectName, projectData.description || '']
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating marketing project:', error);
+      throw error;
+    }
+  }
+
+  async getAllMarketingProjects() {
+    try {
+      const projects = await this.allQuery(
+        `SELECT * FROM marketing_projects ORDER BY project_name ASC`
+      );
+      return projects.map(p => ({
+        id: p.id,
+        projectKey: p.project_key,
+        projectName: p.project_name,
+        description: p.description,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at
+      }));
+    } catch (error) {
+      console.error('Error getting marketing projects:', error);
+      throw error;
+    }
+  }
+
+  async getMarketingProjectByKey(projectKey) {
+    try {
+      const p = await this.getQuery(
+        `SELECT * FROM marketing_projects WHERE project_key = ?`,
+        [projectKey]
+      );
+      if (!p) return null;
+      return {
+        id: p.id,
+        projectKey: p.project_key,
+        projectName: p.project_name,
+        description: p.description,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at
+      };
+    } catch (error) {
+      console.error('Error getting marketing project:', error);
+      throw error;
+    }
+  }
+
+  // Metric operations
+  async createMarketingMetric(metricData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO marketing_metrics (project_id, metric_key, metric_label, category)
+         VALUES (?, ?, ?, ?)`,
+        [metricData.projectId, metricData.metricKey, metricData.metricLabel, metricData.category || '']
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating marketing metric:', error);
+      throw error;
+    }
+  }
+
+  async getMarketingMetricsByProject(projectId) {
+    try {
+      const metrics = await this.allQuery(
+        `SELECT * FROM marketing_metrics WHERE project_id = ? ORDER BY category, metric_label`,
+        [projectId]
+      );
+      return metrics.map(m => ({
+        id: m.id,
+        projectId: m.project_id,
+        metricKey: m.metric_key,
+        metricLabel: m.metric_label,
+        category: m.category,
+        createdAt: m.created_at
+      }));
+    } catch (error) {
+      console.error('Error getting marketing metrics:', error);
+      throw error;
+    }
+  }
+
+  async getMarketingMetricByKey(projectId, metricKey) {
+    try {
+      const m = await this.getQuery(
+        `SELECT * FROM marketing_metrics WHERE project_id = ? AND metric_key = ?`,
+        [projectId, metricKey]
+      );
+      if (!m) return null;
+      return {
+        id: m.id,
+        projectId: m.project_id,
+        metricKey: m.metric_key,
+        metricLabel: m.metric_label,
+        category: m.category,
+        createdAt: m.created_at
+      };
+    } catch (error) {
+      console.error('Error getting marketing metric:', error);
+      throw error;
+    }
+  }
+
+  // Data operations
+  async upsertMarketingData(dataPoint) {
+    try {
+      await this.runQuery(
+        `INSERT INTO marketing_data (project_id, metric_id, date, value, updated_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(project_id, metric_id, date)
+         DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
+        [dataPoint.projectId, dataPoint.metricId, dataPoint.date, dataPoint.value]
+      );
+      return true;
+    } catch (error) {
+      console.error('Error upserting marketing data:', error);
+      throw error;
+    }
+  }
+
+  async bulkUpsertMarketingData(dataPoints) {
+    try {
+      for (const dataPoint of dataPoints) {
+        await this.upsertMarketingData(dataPoint);
+      }
+      return dataPoints.length;
+    } catch (error) {
+      console.error('Error bulk upserting marketing data:', error);
+      throw error;
+    }
+  }
+
+  async getMarketingData(projectId, fromDate, toDate, metricIds = null) {
+    try {
+      let query = `
+        SELECT md.*, mm.metric_key, mm.metric_label, mm.category
+        FROM marketing_data md
+        JOIN marketing_metrics mm ON md.metric_id = mm.id
+        WHERE md.project_id = ?
+        AND md.date >= ? AND md.date <= ?
+      `;
+      const params = [projectId, fromDate, toDate];
+
+      if (metricIds && metricIds.length > 0) {
+        query += ` AND md.metric_id IN (${metricIds.map(() => '?').join(',')})`;
+        params.push(...metricIds);
+      }
+
+      query += ` ORDER BY md.date ASC, mm.metric_label ASC`;
+
+      const data = await this.allQuery(query, params);
+      return data.map(d => ({
+        id: d.id,
+        projectId: d.project_id,
+        metricId: d.metric_id,
+        metricKey: d.metric_key,
+        metricLabel: d.metric_label,
+        category: d.category,
+        date: d.date,
+        value: d.value,
+        createdAt: d.created_at,
+        updatedAt: d.updated_at
+      }));
+    } catch (error) {
+      console.error('Error getting marketing data:', error);
+      throw error;
+    }
+  }
+
+  async getMarketingDataGroupedByMetric(projectId, fromDate, toDate) {
+    try {
+      const data = await this.getMarketingData(projectId, fromDate, toDate);
+      const grouped = {};
+
+      data.forEach(d => {
+        if (!grouped[d.metricKey]) {
+          grouped[d.metricKey] = {
+            metricId: d.metricId,
+            metricKey: d.metricKey,
+            metricLabel: d.metricLabel,
+            category: d.category,
+            data: []
+          };
+        }
+        grouped[d.metricKey].data.push({
+          date: d.date,
+          value: d.value
+        });
+      });
+
+      return grouped;
+    } catch (error) {
+      console.error('Error getting grouped marketing data:', error);
+      throw error;
+    }
+  }
+
+  async getMarketingStats(projectId, fromDate, toDate) {
+    try {
+      const stats = await this.allQuery(`
+        SELECT
+          mm.metric_key,
+          mm.metric_label,
+          mm.category,
+          COUNT(md.value) as data_points,
+          SUM(md.value) as total,
+          AVG(md.value) as average,
+          MAX(md.value) as max,
+          MIN(md.value) as min
+        FROM marketing_metrics mm
+        LEFT JOIN marketing_data md ON mm.id = md.metric_id
+          AND md.project_id = ?
+          AND md.date >= ? AND md.date <= ?
+        WHERE mm.project_id = ?
+        GROUP BY mm.id, mm.metric_key, mm.metric_label, mm.category
+        ORDER BY mm.category, mm.metric_label
+      `, [projectId, fromDate, toDate, projectId]);
+
+      return stats.map(s => ({
+        metricKey: s.metric_key,
+        metricLabel: s.metric_label,
+        category: s.category,
+        dataPoints: s.data_points || 0,
+        total: Math.round(s.total || 0),
+        average: Math.round((s.average || 0) * 100) / 100,
+        max: s.max || 0,
+        min: s.min || 0
+      }));
+    } catch (error) {
+      console.error('Error getting marketing stats:', error);
+      throw error;
+    }
+  }
+
+  async deleteMarketingData(projectId, metricId, date) {
+    try {
+      const result = await this.runQuery(
+        `DELETE FROM marketing_data WHERE project_id = ? AND metric_id = ? AND date = ?`,
+        [projectId, metricId, date]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting marketing data:', error);
+      throw error;
     }
   }
 
