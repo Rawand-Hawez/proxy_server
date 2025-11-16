@@ -355,15 +355,35 @@ const formatMliOpsProgram = (program) => {
     return Number.isNaN(num) ? null : num;
   };
 
+  // Legacy trainer fields (deprecated but still supported)
   const local = toNumber(program.local_trainer) || 0;
   const expat = toNumber(program.expat_trainer) || 0;
+
+  // Participant data (use new fields if available, fall back to old)
   const participants = toNumber(program.number_of_participants);
+  const maleParticipants = toNumber(program.male_participants) || toNumber(program.male);
+  const femaleParticipants = toNumber(program.female_participants) || toNumber(program.female);
+
+  // Revenue calculations
   const participantFee = toNumber(program.participant_fee);
   const computedRevenue = participants && participantFee ? participants * participantFee : null;
-  const totalInput = program.total_revenue_input !== undefined && program.total_revenue_input !== null
-    ? Number(program.total_revenue_input)
-    : null;
+
+  // New revenue fields (preferred)
+  const cashRevenue = toNumber(program.cash_revenue) || toNumber(program.total_revenue_input);
+  const nonMonetaryRevenue = toNumber(program.non_monetary_revenue) || 0;
+  const totalRevenue = toNumber(program.total_revenue) || (cashRevenue ? cashRevenue + nonMonetaryRevenue : null);
+
+  // Cost and profitability
   const programCost = toNumber(program.program_cost);
+  const profit = totalRevenue !== null && programCost !== null ? totalRevenue - programCost : null;
+  const profitMargin = profit !== null && totalRevenue !== null && totalRevenue > 0
+    ? (profit / totalRevenue) * 100
+    : null;
+
+  // Survey ratings
+  const avgContentRating = toNumber(program.avg_content_rating);
+  const avgDeliveryRating = toNumber(program.avg_delivery_rating);
+  const avgOverallRating = toNumber(program.avg_overall_rating);
 
   let status = program.status;
   if (!status) {
@@ -373,11 +393,34 @@ const formatMliOpsProgram = (program) => {
   return {
     ...program,
     status,
+
+    // Participant data
+    number_of_participants: participants,
+    male_participants: maleParticipants,
+    female_participants: femaleParticipants,
+
+    // Legacy trainer count (deprecated)
     trainers: local + expat,
-    program_cost: programCost,
+    local_trainer: local,
+    expat_trainer: expat,
+
+    // Revenue fields
+    participant_fee: participantFee,
+    cash_revenue: cashRevenue,
+    non_monetary_revenue: nonMonetaryRevenue,
+    total_revenue: totalRevenue,
     computed_revenue: computedRevenue,
-    final_revenue: totalInput !== null ? totalInput : computedRevenue,
-    revenue_overridden: totalInput !== null && computedRevenue !== null && Math.abs(totalInput - computedRevenue) > 0.01
+    revenue_overridden: cashRevenue !== null && computedRevenue !== null && Math.abs(cashRevenue - computedRevenue) > 0.01,
+
+    // Cost and profitability
+    program_cost: programCost,
+    profit,
+    profit_margin: profitMargin !== null ? Math.round(profitMargin * 100) / 100 : null,
+
+    // Quality metrics
+    avg_content_rating: avgContentRating,
+    avg_delivery_rating: avgDeliveryRating,
+    avg_overall_rating: avgOverallRating
   };
 };
 
@@ -1439,6 +1482,480 @@ app.delete('/api/mli-ops/programs', async (_req, res) => {
     res.json({ success: true, message: 'All programs cleared' });
   } catch (error) {
     console.error('Error clearing MLI operations programs:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// MLI OPERATIONS - TRAINERS API
+// ==========================================
+
+app.get('/api/mli-ops/trainers', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const includeInactive = req.query.includeInactive === 'true';
+    const trainers = await databaseService.getAllTrainers(includeInactive);
+    res.json({ success: true, count: trainers.length, data: trainers });
+  } catch (error) {
+    console.error('Error fetching trainers:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/mli-ops/trainers/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const trainerId = parseInt(req.params.id, 10);
+    if (Number.isNaN(trainerId)) {
+      return res.status(400).json({ success: false, error: 'Invalid trainer ID' });
+    }
+
+    const trainer = await databaseService.getTrainerById(trainerId);
+    if (!trainer) {
+      return res.status(404).json({ success: false, error: 'Trainer not found' });
+    }
+
+    res.json({ success: true, data: trainer });
+  } catch (error) {
+    console.error('Error fetching trainer:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/mli-ops/trainers', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const { full_name, fullName, trainer_type, trainerType } = req.body;
+    if (!full_name && !fullName) {
+      return res.status(400).json({ success: false, error: 'Trainer name is required' });
+    }
+    if (!trainer_type && !trainerType) {
+      return res.status(400).json({ success: false, error: 'Trainer type is required (local or expat)' });
+    }
+
+    const trainerId = await databaseService.createTrainer(req.body);
+    const trainer = await databaseService.getTrainerById(trainerId);
+
+    res.status(201).json({ success: true, data: trainer });
+  } catch (error) {
+    console.error('Error creating trainer:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/mli-ops/trainers/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const trainerId = parseInt(req.params.id, 10);
+    if (Number.isNaN(trainerId)) {
+      return res.status(400).json({ success: false, error: 'Invalid trainer ID' });
+    }
+
+    const updated = await databaseService.updateTrainer(trainerId, req.body);
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Trainer not found' });
+    }
+
+    const trainer = await databaseService.getTrainerById(trainerId);
+    res.json({ success: true, data: trainer });
+  } catch (error) {
+    console.error('Error updating trainer:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/mli-ops/trainers/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const trainerId = parseInt(req.params.id, 10);
+    if (Number.isNaN(trainerId)) {
+      return res.status(400).json({ success: false, error: 'Invalid trainer ID' });
+    }
+
+    const deleted = await databaseService.deleteTrainer(trainerId);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Trainer not found' });
+    }
+
+    res.json({ success: true, message: 'Trainer deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting trainer:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// MLI OPERATIONS - MODULES API
+// ==========================================
+
+app.get('/api/mli-ops/programs/:programId/modules', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const programId = parseInt(req.params.programId, 10);
+    if (Number.isNaN(programId)) {
+      return res.status(400).json({ success: false, error: 'Invalid program ID' });
+    }
+
+    const modules = await databaseService.getModulesByProgramId(programId);
+    res.json({ success: true, count: modules.length, data: modules });
+  } catch (error) {
+    console.error('Error fetching modules:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/mli-ops/modules/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const moduleId = parseInt(req.params.id, 10);
+    if (Number.isNaN(moduleId)) {
+      return res.status(400).json({ success: false, error: 'Invalid module ID' });
+    }
+
+    const module = await databaseService.getModuleById(moduleId);
+    if (!module) {
+      return res.status(404).json({ success: false, error: 'Module not found' });
+    }
+
+    res.json({ success: true, data: module });
+  } catch (error) {
+    console.error('Error fetching module:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/mli-ops/programs/:programId/modules', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const programId = parseInt(req.params.programId, 10);
+    if (Number.isNaN(programId)) {
+      return res.status(400).json({ success: false, error: 'Invalid program ID' });
+    }
+
+    if (!req.body.name) {
+      return res.status(400).json({ success: false, error: 'Module name is required' });
+    }
+
+    const moduleData = { ...req.body, program_id: programId, programId };
+    const moduleId = await databaseService.createModule(moduleData);
+    const module = await databaseService.getModuleById(moduleId);
+
+    res.status(201).json({ success: true, data: module });
+  } catch (error) {
+    console.error('Error creating module:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/mli-ops/modules/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const moduleId = parseInt(req.params.id, 10);
+    if (Number.isNaN(moduleId)) {
+      return res.status(400).json({ success: false, error: 'Invalid module ID' });
+    }
+
+    const updated = await databaseService.updateModule(moduleId, req.body);
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Module not found' });
+    }
+
+    const module = await databaseService.getModuleById(moduleId);
+    res.json({ success: true, data: module });
+  } catch (error) {
+    console.error('Error updating module:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/mli-ops/modules/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const moduleId = parseInt(req.params.id, 10);
+    if (Number.isNaN(moduleId)) {
+      return res.status(400).json({ success: false, error: 'Invalid module ID' });
+    }
+
+    const deleted = await databaseService.deleteModule(moduleId);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Module not found' });
+    }
+
+    res.json({ success: true, message: 'Module deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting module:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// MLI OPERATIONS - MODULE TRAINERS API
+// ==========================================
+
+app.get('/api/mli-ops/modules/:moduleId/trainers', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const moduleId = parseInt(req.params.moduleId, 10);
+    if (Number.isNaN(moduleId)) {
+      return res.status(400).json({ success: false, error: 'Invalid module ID' });
+    }
+
+    const trainers = await databaseService.getModuleTrainers(moduleId);
+    res.json({ success: true, count: trainers.length, data: trainers });
+  } catch (error) {
+    console.error('Error fetching module trainers:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/mli-ops/trainers/:trainerId/modules', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const trainerId = parseInt(req.params.trainerId, 10);
+    if (Number.isNaN(trainerId)) {
+      return res.status(400).json({ success: false, error: 'Invalid trainer ID' });
+    }
+
+    const modules = await databaseService.getTrainerModules(trainerId);
+    res.json({ success: true, count: modules.length, data: modules });
+  } catch (error) {
+    console.error('Error fetching trainer modules:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/mli-ops/modules/:moduleId/trainers', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const moduleId = parseInt(req.params.moduleId, 10);
+    if (Number.isNaN(moduleId)) {
+      return res.status(400).json({ success: false, error: 'Invalid module ID' });
+    }
+
+    const { trainer_id, trainerId } = req.body;
+    if (!trainer_id && !trainerId) {
+      return res.status(400).json({ success: false, error: 'Trainer ID is required' });
+    }
+
+    const assignmentData = { ...req.body, module_id: moduleId, moduleId };
+    const assignmentId = await databaseService.assignTrainerToModule(assignmentData);
+    const trainers = await databaseService.getModuleTrainers(moduleId);
+    const assignment = trainers.find(t => t.id === assignmentId);
+
+    res.status(201).json({ success: true, data: assignment });
+  } catch (error) {
+    console.error('Error assigning trainer to module:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/mli-ops/module-trainers/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const assignmentId = parseInt(req.params.id, 10);
+    if (Number.isNaN(assignmentId)) {
+      return res.status(400).json({ success: false, error: 'Invalid assignment ID' });
+    }
+
+    const updated = await databaseService.updateModuleTrainerAssignment(assignmentId, req.body);
+    if (!updated) {
+      return res.status(404).json({ success: false, error: 'Assignment not found' });
+    }
+
+    res.json({ success: true, message: 'Assignment updated successfully' });
+  } catch (error) {
+    console.error('Error updating trainer assignment:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/mli-ops/module-trainers/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const assignmentId = parseInt(req.params.id, 10);
+    if (Number.isNaN(assignmentId)) {
+      return res.status(400).json({ success: false, error: 'Invalid assignment ID' });
+    }
+
+    const deleted = await databaseService.removeTrainerFromModule(assignmentId);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Assignment not found' });
+    }
+
+    res.json({ success: true, message: 'Trainer removed from module successfully' });
+  } catch (error) {
+    console.error('Error removing trainer from module:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// MLI OPERATIONS - PROGRAM SURVEYS API
+// ==========================================
+
+app.get('/api/mli-ops/programs/:programId/surveys', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const programId = parseInt(req.params.programId, 10);
+    if (Number.isNaN(programId)) {
+      return res.status(400).json({ success: false, error: 'Invalid program ID' });
+    }
+
+    const surveys = await databaseService.getSurveysByProgramId(programId);
+    res.json({ success: true, count: surveys.length, data: surveys });
+  } catch (error) {
+    console.error('Error fetching program surveys:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/mli-ops/programs/:programId/surveys/aggregates', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const programId = parseInt(req.params.programId, 10);
+    if (Number.isNaN(programId)) {
+      return res.status(400).json({ success: false, error: 'Invalid program ID' });
+    }
+
+    const aggregates = await databaseService.getProgramSurveyAggregates(programId);
+    res.json({ success: true, data: aggregates });
+  } catch (error) {
+    console.error('Error fetching survey aggregates:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/mli-ops/programs/:programId/surveys', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const programId = parseInt(req.params.programId, 10);
+    if (Number.isNaN(programId)) {
+      return res.status(400).json({ success: false, error: 'Invalid program ID' });
+    }
+
+    const surveyData = { ...req.body, program_id: programId, programId };
+    const surveyId = await databaseService.createSurvey(surveyData);
+
+    // Update program aggregates
+    await databaseService.updateProgramSurveyAggregates(programId);
+
+    const survey = await databaseService.getSurveyById(surveyId);
+    res.status(201).json({ success: true, data: survey });
+  } catch (error) {
+    console.error('Error creating survey:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/mli-ops/surveys/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const surveyId = parseInt(req.params.id, 10);
+    if (Number.isNaN(surveyId)) {
+      return res.status(400).json({ success: false, error: 'Invalid survey ID' });
+    }
+
+    const existing = await databaseService.getSurveyById(surveyId);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Survey not found' });
+    }
+
+    const updated = await databaseService.updateSurvey(surveyId, req.body);
+    if (updated) {
+      // Update program aggregates
+      await databaseService.updateProgramSurveyAggregates(existing.program_id);
+    }
+
+    const survey = await databaseService.getSurveyById(surveyId);
+    res.json({ success: true, data: survey });
+  } catch (error) {
+    console.error('Error updating survey:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/mli-ops/surveys/:id', async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const surveyId = parseInt(req.params.id, 10);
+    if (Number.isNaN(surveyId)) {
+      return res.status(400).json({ success: false, error: 'Invalid survey ID' });
+    }
+
+    const existing = await databaseService.getSurveyById(surveyId);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Survey not found' });
+    }
+
+    const deleted = await databaseService.deleteSurvey(surveyId);
+    if (deleted) {
+      // Update program aggregates
+      await databaseService.updateProgramSurveyAggregates(existing.program_id);
+    }
+
+    res.json({ success: true, message: 'Survey deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting survey:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

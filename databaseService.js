@@ -955,10 +955,116 @@ class DatabaseService {
 
   async ensureMliOpsSchema() {
     try {
+      // Add program_cost column (backward compat)
       await this.runQuery('ALTER TABLE mli_ops_programs ADD COLUMN program_cost REAL');
     } catch (error) {
       if (!error.message.includes('duplicate column name')) {
         throw error;
+      }
+    }
+
+    // Add new columns for migration to new schema
+    const newColumns = [
+      'ALTER TABLE mli_ops_programs ADD COLUMN male_participants INTEGER',
+      'ALTER TABLE mli_ops_programs ADD COLUMN female_participants INTEGER',
+      'ALTER TABLE mli_ops_programs ADD COLUMN cash_revenue REAL',
+      'ALTER TABLE mli_ops_programs ADD COLUMN total_revenue REAL',
+      'ALTER TABLE mli_ops_programs ADD COLUMN avg_content_rating REAL',
+      'ALTER TABLE mli_ops_programs ADD COLUMN avg_delivery_rating REAL',
+      'ALTER TABLE mli_ops_programs ADD COLUMN avg_overall_rating REAL'
+    ];
+
+    for (const columnQuery of newColumns) {
+      try {
+        await this.runQuery(columnQuery);
+      } catch (error) {
+        if (!error.message.includes('duplicate column name')) {
+          console.warn('Column migration warning:', error.message);
+        }
+      }
+    }
+
+    // Create new tables
+    const newTables = [
+      // Program Modules
+      `CREATE TABLE IF NOT EXISTS mli_ops_program_modules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        program_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        duration_days REAL,
+        unit_price REAL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (program_id) REFERENCES mli_ops_programs(id) ON DELETE CASCADE,
+        UNIQUE (program_id, name)
+      )`,
+
+      // Trainers
+      `CREATE TABLE IF NOT EXISTS mli_ops_trainers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        full_name TEXT NOT NULL,
+        trainer_type TEXT NOT NULL CHECK (trainer_type IN ('local', 'expat')),
+        email TEXT,
+        phone TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Module-Trainer Assignments
+      `CREATE TABLE IF NOT EXISTS mli_ops_module_trainers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        module_id INTEGER NOT NULL,
+        trainer_id INTEGER NOT NULL,
+        role TEXT,
+        trainer_fee REAL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (module_id) REFERENCES mli_ops_program_modules(id) ON DELETE CASCADE,
+        FOREIGN KEY (trainer_id) REFERENCES mli_ops_trainers(id) ON DELETE RESTRICT,
+        UNIQUE (module_id, trainer_id)
+      )`,
+
+      // Program Surveys
+      `CREATE TABLE IF NOT EXISTS mli_ops_program_surveys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        program_id INTEGER NOT NULL,
+        respondent_type TEXT,
+        content_rating INTEGER CHECK (content_rating BETWEEN 1 AND 5),
+        delivery_rating INTEGER CHECK (delivery_rating BETWEEN 1 AND 5),
+        overall_rating REAL,
+        comments TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (program_id) REFERENCES mli_ops_programs(id) ON DELETE CASCADE
+      )`
+    ];
+
+    for (const tableQuery of newTables) {
+      try {
+        await this.runQuery(tableQuery);
+      } catch (error) {
+        console.error('Error creating MLI Ops table:', error);
+      }
+    }
+
+    // Create indexes
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS idx_modules_program_id ON mli_ops_program_modules(program_id)',
+      'CREATE INDEX IF NOT EXISTS idx_module_trainers_module_id ON mli_ops_module_trainers(module_id)',
+      'CREATE INDEX IF NOT EXISTS idx_module_trainers_trainer_id ON mli_ops_module_trainers(trainer_id)',
+      'CREATE INDEX IF NOT EXISTS idx_surveys_program_id ON mli_ops_program_surveys(program_id)',
+      'CREATE INDEX IF NOT EXISTS idx_trainers_type ON mli_ops_trainers(trainer_type)',
+      'CREATE INDEX IF NOT EXISTS idx_trainers_active ON mli_ops_trainers(active)'
+    ];
+
+    for (const indexQuery of indexes) {
+      try {
+        await this.runQuery(indexQuery);
+      } catch (error) {
+        if (!error.message.includes('already exists')) {
+          console.warn('Index creation warning:', error.message);
+        }
       }
     }
   }
@@ -1136,6 +1242,397 @@ class DatabaseService {
     } catch (error) {
       await this.runQuery('ROLLBACK');
       console.error('Error bulk upserting MLI operations programs:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // MLI OPERATIONS - TRAINERS
+  // ==========================================
+
+  async getAllTrainers(includeInactive = false) {
+    try {
+      const query = includeInactive
+        ? 'SELECT * FROM mli_ops_trainers ORDER BY full_name'
+        : 'SELECT * FROM mli_ops_trainers WHERE active = 1 ORDER BY full_name';
+      return await this.allQuery(query);
+    } catch (error) {
+      console.error('Error fetching trainers:', error);
+      throw error;
+    }
+  }
+
+  async getTrainerById(id) {
+    try {
+      return await this.getQuery('SELECT * FROM mli_ops_trainers WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error fetching trainer:', error);
+      throw error;
+    }
+  }
+
+  async createTrainer(trainerData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO mli_ops_trainers (full_name, trainer_type, email, phone, active)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          trainerData.full_name || trainerData.fullName,
+          trainerData.trainer_type || trainerData.trainerType,
+          trainerData.email || null,
+          trainerData.phone || null,
+          trainerData.active !== undefined ? trainerData.active : 1
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating trainer:', error);
+      throw error;
+    }
+  }
+
+  async updateTrainer(id, trainerData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE mli_ops_trainers SET
+          full_name = ?,
+          trainer_type = ?,
+          email = ?,
+          phone = ?,
+          active = ?,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          trainerData.full_name || trainerData.fullName,
+          trainerData.trainer_type || trainerData.trainerType,
+          trainerData.email || null,
+          trainerData.phone || null,
+          trainerData.active !== undefined ? trainerData.active : 1,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating trainer:', error);
+      throw error;
+    }
+  }
+
+  async deleteTrainer(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM mli_ops_trainers WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting trainer:', error);
+      throw error;
+    }
+  }
+
+  async deactivateTrainer(id) {
+    try {
+      const result = await this.runQuery(
+        'UPDATE mli_ops_trainers SET active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [id]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deactivating trainer:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // MLI OPERATIONS - MODULES
+  // ==========================================
+
+  async getModulesByProgramId(programId) {
+    try {
+      return await this.allQuery(
+        'SELECT * FROM mli_ops_program_modules WHERE program_id = ? ORDER BY name',
+        [programId]
+      );
+    } catch (error) {
+      console.error('Error fetching modules:', error);
+      throw error;
+    }
+  }
+
+  async getModuleById(id) {
+    try {
+      return await this.getQuery('SELECT * FROM mli_ops_program_modules WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error fetching module:', error);
+      throw error;
+    }
+  }
+
+  async createModule(moduleData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO mli_ops_program_modules (program_id, name, description, duration_days, unit_price)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          moduleData.program_id || moduleData.programId,
+          moduleData.name,
+          moduleData.description || null,
+          moduleData.duration_days || moduleData.durationDays || null,
+          moduleData.unit_price || moduleData.unitPrice || null
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating module:', error);
+      throw error;
+    }
+  }
+
+  async updateModule(id, moduleData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE mli_ops_program_modules SET
+          name = ?,
+          description = ?,
+          duration_days = ?,
+          unit_price = ?,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          moduleData.name,
+          moduleData.description || null,
+          moduleData.duration_days || moduleData.durationDays || null,
+          moduleData.unit_price || moduleData.unitPrice || null,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating module:', error);
+      throw error;
+    }
+  }
+
+  async deleteModule(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM mli_ops_program_modules WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting module:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // MLI OPERATIONS - MODULE TRAINERS
+  // ==========================================
+
+  async getModuleTrainers(moduleId) {
+    try {
+      return await this.allQuery(
+        `SELECT mt.*, t.full_name, t.trainer_type, t.email, t.phone
+         FROM mli_ops_module_trainers mt
+         JOIN mli_ops_trainers t ON mt.trainer_id = t.id
+         WHERE mt.module_id = ?`,
+        [moduleId]
+      );
+    } catch (error) {
+      console.error('Error fetching module trainers:', error);
+      throw error;
+    }
+  }
+
+  async getTrainerModules(trainerId) {
+    try {
+      return await this.allQuery(
+        `SELECT mt.*, m.name as module_name, m.program_id, p.program as program_name
+         FROM mli_ops_module_trainers mt
+         JOIN mli_ops_program_modules m ON mt.module_id = m.id
+         JOIN mli_ops_programs p ON m.program_id = p.id
+         WHERE mt.trainer_id = ?`,
+        [trainerId]
+      );
+    } catch (error) {
+      console.error('Error fetching trainer modules:', error);
+      throw error;
+    }
+  }
+
+  async assignTrainerToModule(assignmentData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO mli_ops_module_trainers (module_id, trainer_id, role, trainer_fee)
+         VALUES (?, ?, ?, ?)`,
+        [
+          assignmentData.module_id || assignmentData.moduleId,
+          assignmentData.trainer_id || assignmentData.trainerId,
+          assignmentData.role || null,
+          assignmentData.trainer_fee || assignmentData.trainerFee || null
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error assigning trainer to module:', error);
+      throw error;
+    }
+  }
+
+  async updateModuleTrainerAssignment(id, assignmentData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE mli_ops_module_trainers SET
+          role = ?,
+          trainer_fee = ?,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          assignmentData.role || null,
+          assignmentData.trainer_fee || assignmentData.trainerFee || null,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating module trainer assignment:', error);
+      throw error;
+    }
+  }
+
+  async removeTrainerFromModule(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM mli_ops_module_trainers WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error removing trainer from module:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // MLI OPERATIONS - PROGRAM SURVEYS
+  // ==========================================
+
+  async getSurveysByProgramId(programId) {
+    try {
+      return await this.allQuery(
+        'SELECT * FROM mli_ops_program_surveys WHERE program_id = ? ORDER BY created_at DESC',
+        [programId]
+      );
+    } catch (error) {
+      console.error('Error fetching program surveys:', error);
+      throw error;
+    }
+  }
+
+  async getSurveyById(id) {
+    try {
+      return await this.getQuery('SELECT * FROM mli_ops_program_surveys WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error fetching survey:', error);
+      throw error;
+    }
+  }
+
+  async createSurvey(surveyData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO mli_ops_program_surveys
+         (program_id, respondent_type, content_rating, delivery_rating, overall_rating, comments)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          surveyData.program_id || surveyData.programId,
+          surveyData.respondent_type || surveyData.respondentType || null,
+          surveyData.content_rating || surveyData.contentRating || null,
+          surveyData.delivery_rating || surveyData.deliveryRating || null,
+          surveyData.overall_rating || surveyData.overallRating || null,
+          surveyData.comments || null
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating survey:', error);
+      throw error;
+    }
+  }
+
+  async updateSurvey(id, surveyData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE mli_ops_program_surveys SET
+          respondent_type = ?,
+          content_rating = ?,
+          delivery_rating = ?,
+          overall_rating = ?,
+          comments = ?
+         WHERE id = ?`,
+        [
+          surveyData.respondent_type || surveyData.respondentType || null,
+          surveyData.content_rating || surveyData.contentRating || null,
+          surveyData.delivery_rating || surveyData.deliveryRating || null,
+          surveyData.overall_rating || surveyData.overallRating || null,
+          surveyData.comments || null,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating survey:', error);
+      throw error;
+    }
+  }
+
+  async deleteSurvey(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM mli_ops_program_surveys WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting survey:', error);
+      throw error;
+    }
+  }
+
+  async getProgramSurveyAggregates(programId) {
+    try {
+      const stats = await this.getQuery(
+        `SELECT
+          COUNT(*) as total_responses,
+          AVG(content_rating) as avg_content_rating,
+          AVG(delivery_rating) as avg_delivery_rating,
+          AVG(overall_rating) as avg_overall_rating
+         FROM mli_ops_program_surveys
+         WHERE program_id = ?`,
+        [programId]
+      );
+      return {
+        totalResponses: stats?.total_responses || 0,
+        avgContentRating: stats?.avg_content_rating || null,
+        avgDeliveryRating: stats?.avg_delivery_rating || null,
+        avgOverallRating: stats?.avg_overall_rating || null
+      };
+    } catch (error) {
+      console.error('Error getting survey aggregates:', error);
+      throw error;
+    }
+  }
+
+  async updateProgramSurveyAggregates(programId) {
+    try {
+      const aggregates = await this.getProgramSurveyAggregates(programId);
+      await this.runQuery(
+        `UPDATE mli_ops_programs SET
+          avg_content_rating = ?,
+          avg_delivery_rating = ?,
+          avg_overall_rating = ?,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          aggregates.avgContentRating,
+          aggregates.avgDeliveryRating,
+          aggregates.avgOverallRating,
+          programId
+        ]
+      );
+      return aggregates;
+    } catch (error) {
+      console.error('Error updating program survey aggregates:', error);
       throw error;
     }
   }
