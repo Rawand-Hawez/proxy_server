@@ -159,21 +159,17 @@ async function initializeDatabase() {
               await db.bulkUpsertMliOpsPrograms(seedRows.map(row => ({
                 program: row.program,
                 number_of_participants: row.number_of_participants,
-                male: row.male,
-                female: row.female,
-                trainers: row.trainers,
-                local_trainer: row.local_trainer,
-                expat_trainer: row.expat_trainer,
-                duration_days: row.duration_days,
-                unit_price: row.unit_price,
-                total_revenue_input: row.total_revenue_input,
+                male_participants: row.male_participants,
+                female_participants: row.female_participants,
+                cash_revenue: row.cash_revenue,
+                non_monetary_revenue: row.non_monetary_revenue,
+                computed_revenue: row.computed_revenue,
+                participant_fee: row.participant_fee,
+                program_cost: row.program_cost,
                 status: row.status,
                 start_date: row.start_date,
                 end_date: row.end_date,
-                participant_fee: row.participant_fee,
-                non_monetary_revenue: row.non_monetary_revenue,
-                actual_revenue: row.actual_revenue,
-                program_cost: row.program_cost
+                notes: row.notes
               })));
               console.log(`✅ Imported ${seedRows.length} MLI operations programs`);
             } else {
