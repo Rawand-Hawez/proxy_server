@@ -9,9 +9,6 @@
 # Dependencies
 node_modules/
 
-# Documentation
-docs/
-
 # Database files
 scripts/
 # Note: data/ is tracked in git to ensure production has the database
