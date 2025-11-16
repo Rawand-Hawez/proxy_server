@@ -13,10 +13,8 @@ node_modules/
 docs/
 
 # Database files
-data/
-*.db
-*.sqlite
-*.sqlite3
+scripts/
+# Note: data/ is tracked in git to ensure production has the database
 
 # Logs
 logs/
