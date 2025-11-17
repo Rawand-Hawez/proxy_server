@@ -10,7 +10,6 @@
 node_modules/
 
 # Database files
-scripts/
 # Note: data/ is tracked in git to ensure production has the database
 
 # Logs
@@ -39,5 +38,5 @@ test-*.js
 # Database backups
 data/proxy_server_backup_*.db
 
-# Migration summaries (keep only API docs)
-MLI_MIGRATION_SUMMARY.md
+# Migration summaries (keep only API docs and deployment docs)
+*.md
