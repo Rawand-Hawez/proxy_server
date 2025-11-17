@@ -1102,14 +1102,16 @@ class DatabaseService {
     const nonMonetaryRevenue = toNumber(program.non_monetary_revenue);
 
     // Calculate cash_revenue
-    const cashRevenue = toNumber(program.cash_revenue) ||
-                       toNumber(program.total_revenue_input) ||
-                       (participants && participantFee ? participants * participantFee : null);
+    const cashRevenue = program.cash_revenue !== undefined && program.cash_revenue !== null
+      ? toNumber(program.cash_revenue)
+      : (toNumber(program.total_revenue_input) ??
+         (participants && participantFee ? participants * participantFee : null));
 
     // Calculate total_revenue
-    const totalRevenue = toNumber(program.total_revenue) ||
-                        toNumber(program.actual_revenue) ||
-                        ((cashRevenue || 0) + (nonMonetaryRevenue || 0)) || null;
+    const totalRevenue = program.total_revenue !== undefined && program.total_revenue !== null
+      ? toNumber(program.total_revenue)
+      : (toNumber(program.actual_revenue) ??
+         (((cashRevenue ?? 0) + (nonMonetaryRevenue ?? 0)) || null));
 
     let status = program.status;
     if (!status || status === 'auto') {
