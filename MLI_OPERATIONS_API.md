@@ -1,329 +1,743 @@
-# MLI Operations – Programs Data Model & KPIs
+# MLI Operations API Reference
 
-## 1. Purpose
-
-This document describes the data model for **MLI Operations Programs**, including:
-
-- Program structure (programs, modules, trainers).
-- Revenue and cost modelling.
-- End-of-program survey ratings.
-- Key quality and profitability KPIs.
-
-The aim is to support clear reporting on:
-
-- **Quality** – course content and trainer delivery.
-- **Profitability** – cash and non-monetary value versus program cost.
+**Version:** 2.0
+**Last Updated:** 2025-11-17
+**Base URL:** `https://proxy.krdholding.dev/api/mli-ops`
 
 ---
 
-## 2. Business Concepts
+## Table of Contents
 
-### 2.1. Program
-
-A **Program** is a training offering delivered by MLI. It has:
-
-- A name (or code).
-- Start and end dates.
-- Participants (male and female).
-- Financial outcomes (revenue and cost).
-- Quality ratings based on surveys.
-
-### 2.2. Module
-
-A **Module** is a logical part of a program. A program can have:
-
-- One default module (e.g. `"Main"`), or
-- Multiple modules (e.g. `"Module 1: Leadership"`, `"Module 2: Communication"`).
-
-Each module can have:
-
-- Its own duration.
-- Its own price (if applicable).
-- Its own assigned trainers.
-
-### 2.3. Trainer
-
-A **Trainer** is an individual who delivers module content. Each trainer:
-
-- Can be **local** or **expat**.
-- Can teach different modules across different programs.
-
-### 2.4. Survey (Program Evaluation)
-
-At the end of a program, participants (or other stakeholders) fill out a survey to rate:
-
-1. **Program Content** (1–5)
-2. **Program Delivery** (1–5)
-
-An overall rating can be derived or explicitly stored. Multiple survey responses are aggregated to generate average scores per program.
+1. [Overview](#overview)
+2. [Data Model](#data-model)
+3. [API Endpoints](#api-endpoints)
+   - [Programs](#programs-api)
+   - [Trainers](#trainers-api)
+   - [Modules](#modules-api)
+   - [Module-Trainer Assignments](#module-trainer-assignments-api)
+   - [Program Surveys](#program-surveys-api)
+4. [Request/Response Examples](#request-response-examples)
+5. [Calculated Fields](#calculated-fields)
 
 ---
 
-## 3. Revenue & Cost Definitions
+## Overview
 
-### 3.1. Cash Revenue (`cash_revenue`)
+The MLI Operations API provides endpoints for managing training programs, including:
 
-> **All actual cash inflows** linked to a program.
+- **Programs** - Core training programs with participants, revenue, and costs
+- **Trainers** - Master data for local and expat trainers
+- **Modules** - Program modules/components
+- **Module-Trainer Assignments** - Linking trainers to specific modules
+- **Program Surveys** - Quality feedback and ratings
 
-Examples:
+### Key Business Concepts
 
-- Participant fees paid.
-- Contracted training income.
-- Cash grants or sponsorships specifically for the program.
+**Revenue Types:**
+- `cash_revenue`: Actual cash received (participant fees, contracts, grants)
+- `non_monetary_revenue`: Value of in-kind contributions (free venues, donated services)
+- `total_revenue`: `cash_revenue + non_monetary_revenue`
 
-### 3.2. Non-monetary Revenue (`non_monetary_revenue`)
+**Profitability:**
+- `profit`: `total_revenue - program_cost`
+- `profit_margin`: `profit / total_revenue`
 
-> **Estimated monetary value** of in-kind or non-cash contributions that increase program value but are **not paid as cash** to MLI.
+**Quality Metrics:**
+- `avg_content_rating`: Average rating of program content (1-5)
+- `avg_delivery_rating`: Average rating of delivery quality (1-5)
+- `avg_overall_rating`: Overall program rating
 
-Examples (included):
+---
 
-- Partner organization provides trainers for free (trainer time is valued).
-- University provides classrooms or labs for free (venue is valued at normal rent).
-- Donated materials and services (printing, catering, translation, logistics).
-- Volunteer trainers or mentors whose time can be reasonably priced.
+## Data Model
 
-Excluded:
+### 1. Programs (`mli_ops_programs`)
 
-- All actual cash inflows (already part of `cash_revenue`).
-- Regular internal overhead unless formally logged as an in-kind contribution.
+```typescript
+interface Program {
+  id: number;
+  program: string;                    // Unique program name
+  status: 'planned' | 'completed';
+  start_date: string;                 // ISO date: "2025-01-15"
+  end_date: string;                   // ISO date: "2025-01-20"
 
-### 3.3. Total Revenue (`total_revenue`)
+  // Participants
+  number_of_participants: number;     // Total participants
+  male_participants: number;
+  female_participants: number;
 
-```text
+  // Revenue & Cost
+  participant_fee: number;            // Fee per participant
+  cash_revenue: number;               // Actual cash received
+  non_monetary_revenue: number;       // Value of in-kind contributions
+  total_revenue: number;              // cash_revenue + non_monetary_revenue
+  program_cost: number;               // Total program cost
+
+  // Quality Metrics (from surveys)
+  avg_content_rating: number;         // 1-5
+  avg_delivery_rating: number;        // 1-5
+  avg_overall_rating: number;
+
+  notes: string;
+  created_at: string;                 // ISO datetime
+  updated_at: string;                 // ISO datetime
+}
+```
+
+### 2. Trainers (`mli_ops_trainers`)
+
+```typescript
+interface Trainer {
+  id: number;
+  full_name: string;
+  trainer_type: 'local' | 'expat';
+  email: string;
+  phone: string;
+  active: number;                     // 1 = active, 0 = inactive
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### 3. Modules (`mli_ops_program_modules`)
+
+```typescript
+interface Module {
+  id: number;
+  program_id: number;
+  name: string;                       // e.g., "Module 1: Leadership"
+  description: string;
+  duration_days: number;
+  unit_price: number;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### 4. Module-Trainer Assignments (`mli_ops_module_trainers`)
+
+```typescript
+interface ModuleTrainerAssignment {
+  id: number;
+  module_id: number;
+  trainer_id: number;
+  role: string;                       // e.g., "Lead Trainer", "Assistant"
+  trainer_fee: number;                // Fee paid to trainer for this module
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### 5. Program Surveys (`mli_ops_program_surveys`)
+
+```typescript
+interface ProgramSurvey {
+  id: number;
+  program_id: number;
+  respondent_type: string;            // e.g., "participant", "sponsor"
+  content_rating: number;             // 1-5
+  delivery_rating: number;            // 1-5
+  overall_rating: number;
+  comments: string;
+  created_at: string;
+}
+```
+
+---
+
+## API Endpoints
+
+### Programs API
+
+#### List All Programs
+```http
+GET /api/mli-ops/programs
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "program": "Leadership Training Q1 2025",
+    "status": "completed",
+    "start_date": "2025-01-15",
+    "end_date": "2025-01-20",
+    "number_of_participants": 25,
+    "male_participants": 15,
+    "female_participants": 10,
+    "participant_fee": 2000,
+    "cash_revenue": 50000,
+    "non_monetary_revenue": 10000,
+    "total_revenue": 60000,
+    "program_cost": 30000,
+    "avg_content_rating": 4.5,
+    "avg_delivery_rating": 4.3,
+    "avg_overall_rating": 4.4,
+    "notes": "Highly successful program",
+    "created_at": "2025-01-10T10:00:00Z",
+    "updated_at": "2025-01-21T15:30:00Z"
+  }
+]
+```
+
+#### Create Program
+```http
+POST /api/mli-ops/programs
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "program": "Leadership Training Q1 2025",
+  "status": "planned",
+  "start_date": "2025-01-15",
+  "end_date": "2025-01-20",
+  "number_of_participants": 25,
+  "male_participants": 15,
+  "female_participants": 10,
+  "participant_fee": 2000,
+  "cash_revenue": 50000,
+  "non_monetary_revenue": 10000,
+  "program_cost": 30000,
+  "notes": "New training program"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "id": 1,
+  "message": "Program created successfully"
+}
+```
+
+#### Update Program
+```http
+PUT /api/mli-ops/programs/:id
+Content-Type: application/json
+```
+
+**Request Body:** (same as Create, include `id`)
+```json
+{
+  "id": 1,
+  "program": "Leadership Training Q1 2025",
+  "status": "completed",
+  "number_of_participants": 30,
+  "cash_revenue": 60000
+}
+```
+
+#### Delete Program
+```http
+DELETE /api/mli-ops/programs/:id
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Program deleted successfully"
+}
+```
+
+---
+
+### Trainers API
+
+#### List All Trainers
+```http
+GET /api/mli-ops/trainers
+GET /api/mli-ops/trainers?includeInactive=true
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "full_name": "Ahmed Hassan",
+    "trainer_type": "local",
+    "email": "ahmed@example.com",
+    "phone": "+20-123-456-7890",
+    "active": 1,
+    "created_at": "2025-01-01T10:00:00Z",
+    "updated_at": "2025-01-01T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "full_name": "John Smith",
+    "trainer_type": "expat",
+    "email": "john@example.com",
+    "phone": "+1-555-123-4567",
+    "active": 1,
+    "created_at": "2025-01-01T11:00:00Z",
+    "updated_at": "2025-01-01T11:00:00Z"
+  }
+]
+```
+
+#### Get Single Trainer
+```http
+GET /api/mli-ops/trainers/:id
+```
+
+#### Create Trainer
+```http
+POST /api/mli-ops/trainers
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "full_name": "Ahmed Hassan",
+  "trainer_type": "local",
+  "email": "ahmed@example.com",
+  "phone": "+20-123-456-7890",
+  "active": 1
+}
+```
+
+**Note:** `trainer_type` must be either `"local"` or `"expat"`
+
+#### Update Trainer
+```http
+PUT /api/mli-ops/trainers/:id
+Content-Type: application/json
+```
+
+#### Delete Trainer
+```http
+DELETE /api/mli-ops/trainers/:id
+```
+
+---
+
+### Modules API
+
+#### List Modules for a Program
+```http
+GET /api/mli-ops/programs/:programId/modules
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "program_id": 1,
+    "name": "Module 1: Leadership",
+    "description": "Leadership and management skills",
+    "duration_days": 3,
+    "unit_price": 5000,
+    "created_at": "2025-01-10T10:00:00Z",
+    "updated_at": "2025-01-10T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "program_id": 1,
+    "name": "Module 2: Communication",
+    "description": "Effective communication techniques",
+    "duration_days": 2,
+    "unit_price": 3000,
+    "created_at": "2025-01-10T10:05:00Z",
+    "updated_at": "2025-01-10T10:05:00Z"
+  }
+]
+```
+
+#### Get Single Module
+```http
+GET /api/mli-ops/modules/:id
+```
+
+#### Create Module
+```http
+POST /api/mli-ops/programs/:programId/modules
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "name": "Module 1: Leadership",
+  "description": "Leadership and management skills",
+  "duration_days": 3,
+  "unit_price": 5000
+}
+```
+
+#### Update Module
+```http
+PUT /api/mli-ops/modules/:id
+Content-Type: application/json
+```
+
+#### Delete Module
+```http
+DELETE /api/mli-ops/modules/:id
+```
+
+---
+
+### Module-Trainer Assignments API
+
+#### Get Trainers for a Module
+```http
+GET /api/mli-ops/modules/:moduleId/trainers
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "module_id": 1,
+    "trainer_id": 1,
+    "role": "Lead Trainer",
+    "trainer_fee": 2000,
+    "full_name": "Ahmed Hassan",
+    "trainer_type": "local",
+    "email": "ahmed@example.com",
+    "phone": "+20-123-456-7890",
+    "created_at": "2025-01-10T12:00:00Z",
+    "updated_at": "2025-01-10T12:00:00Z"
+  }
+]
+```
+
+#### Get Modules for a Trainer
+```http
+GET /api/mli-ops/trainers/:trainerId/modules
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "module_id": 1,
+    "trainer_id": 1,
+    "role": "Lead Trainer",
+    "trainer_fee": 2000,
+    "module_name": "Module 1: Leadership",
+    "program_id": 1,
+    "program_name": "Leadership Training Q1 2025",
+    "created_at": "2025-01-10T12:00:00Z",
+    "updated_at": "2025-01-10T12:00:00Z"
+  }
+]
+```
+
+#### Assign Trainer to Module
+```http
+POST /api/mli-ops/modules/:moduleId/trainers
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "trainer_id": 1,
+  "role": "Lead Trainer",
+  "trainer_fee": 2000
+}
+```
+
+#### Update Assignment
+```http
+PUT /api/mli-ops/module-trainers/:id
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "role": "Lead Trainer",
+  "trainer_fee": 2500
+}
+```
+
+#### Remove Trainer from Module
+```http
+DELETE /api/mli-ops/module-trainers/:id
+```
+
+---
+
+### Program Surveys API
+
+#### List Surveys for a Program
+```http
+GET /api/mli-ops/programs/:programId/surveys
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "program_id": 1,
+    "respondent_type": "participant",
+    "content_rating": 5,
+    "delivery_rating": 4,
+    "overall_rating": 4.5,
+    "comments": "Excellent program!",
+    "created_at": "2025-01-21T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "program_id": 1,
+    "respondent_type": "participant",
+    "content_rating": 4,
+    "delivery_rating": 5,
+    "overall_rating": 4.5,
+    "comments": "Great delivery!",
+    "created_at": "2025-01-21T11:00:00Z"
+  }
+]
+```
+
+#### Get Survey Aggregates
+```http
+GET /api/mli-ops/programs/:programId/surveys/aggregates
+```
+
+**Response:**
+```json
+{
+  "totalResponses": 2,
+  "avgContentRating": 4.5,
+  "avgDeliveryRating": 4.5,
+  "avgOverallRating": 4.5
+}
+```
+
+#### Submit Survey
+```http
+POST /api/mli-ops/programs/:programId/surveys
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "respondent_type": "participant",
+  "content_rating": 5,
+  "delivery_rating": 4,
+  "overall_rating": 4.5,
+  "comments": "Excellent program!"
+}
+```
+
+**Note:** Ratings must be between 1 and 5
+
+#### Update Survey
+```http
+PUT /api/mli-ops/surveys/:id
+Content-Type: application/json
+```
+
+#### Delete Survey
+```http
+DELETE /api/mli-ops/surveys/:id
+```
+
+---
+
+## Request/Response Examples
+
+### Complete Program Creation Workflow
+
+#### 1. Create a Program
+```http
+POST /api/mli-ops/programs
+Content-Type: application/json
+
+{
+  "program": "Advanced Leadership 2025",
+  "status": "planned",
+  "start_date": "2025-03-01",
+  "end_date": "2025-03-15",
+  "number_of_participants": 20,
+  "male_participants": 12,
+  "female_participants": 8,
+  "participant_fee": 3000,
+  "cash_revenue": 60000,
+  "non_monetary_revenue": 15000,
+  "program_cost": 40000
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "id": 5,
+  "message": "Program created successfully"
+}
+```
+
+#### 2. Create Modules for the Program
+```http
+POST /api/mli-ops/programs/5/modules
+Content-Type: application/json
+
+{
+  "name": "Module 1: Strategic Thinking",
+  "description": "Developing strategic thinking skills",
+  "duration_days": 5,
+  "unit_price": 8000
+}
+```
+
+```http
+POST /api/mli-ops/programs/5/modules
+Content-Type: application/json
+
+{
+  "name": "Module 2: Team Building",
+  "description": "Building high-performance teams",
+  "duration_days": 3,
+  "unit_price": 5000
+}
+```
+
+#### 3. Assign Trainers to Modules
+```http
+POST /api/mli-ops/modules/1/trainers
+Content-Type: application/json
+
+{
+  "trainer_id": 1,
+  "role": "Lead Trainer",
+  "trainer_fee": 3000
+}
+```
+
+#### 4. Submit Survey After Program Completion
+```http
+POST /api/mli-ops/programs/5/surveys
+Content-Type: application/json
+
+{
+  "respondent_type": "participant",
+  "content_rating": 5,
+  "delivery_rating": 5,
+  "overall_rating": 5,
+  "comments": "Outstanding program! Highly recommend."
+}
+```
+
+---
+
+## Calculated Fields
+
+The following fields can be calculated from other fields:
+
+### Program Level
+
+**Total Revenue:**
+```javascript
 total_revenue = cash_revenue + non_monetary_revenue
--------------
+```
 
+**Profit:**
+```javascript
+profit = total_revenue - program_cost
+```
 
-You are working on an MLI Operations system that uses SQLite as its primary database.
+**Profit Margin:**
+```javascript
+profit_margin = (profit / total_revenue) * 100  // as percentage
+```
 
-We currently have a single table for programs:
+**Number of Participants** (if not provided):
+```javascript
+number_of_participants = male_participants + female_participants
+```
 
---------------------------------
-CURRENT TABLE SCHEMA (SQLite)
---------------------------------
+### Quality Metrics
 
-CREATE TABLE IF NOT EXISTS mli_ops_programs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  program TEXT NOT NULL UNIQUE,
-  number_of_participants REAL,
-  male REAL,
-  female REAL,
-  trainers REAL,
-  local_trainer REAL,
-  expat_trainer REAL,
-  duration_days REAL,
-  unit_price REAL,
-  total_revenue_input REAL,
-  status TEXT,
-  start_date TEXT,
-  end_date TEXT,
-  participant_fee REAL,
-  non_monetary_revenue REAL,
-  actual_revenue REAL,
-  program_cost REAL,
-  notes TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+The `avg_content_rating`, `avg_delivery_rating`, and `avg_overall_rating` in the programs table are automatically calculated from the program surveys. You can:
 
-Business feedback:
-- `trainers` is redundant (it is the sum of local_trainer and expat_trainer).
-- `total_revenue_input`, `non_monetary_revenue`, and `actual_revenue` are confusing.
-- The business wants:
-  - Clear distinction between cash revenue and in-kind (non-monetary) contributions.
-  - Proper modeling of modules and trainers.
-  - Ability to record end-of-program survey ratings (content & delivery).
-  - KPIs around quality (course, trainer) and profitability.
+1. Submit individual surveys via `POST /api/mli-ops/programs/:id/surveys`
+2. The system will automatically update the program's average ratings
 
---------------------------------
-BUSINESS DEFINITIONS
---------------------------------
+Alternatively, you can manually set these values when creating/updating a program.
 
-non_monetary_revenue:
-- Monetary value of in-kind contributions, such as:
-  - Partner-provided trainers with no cash payment.
-  - Free or subsidised venues from partners.
-  - Donated materials and services (printing, catering, translation).
-  - Volunteer time assigned a reasonable monetary value.
-- It EXCLUDES:
-  - All actual cash inflows (participant payments, cash grants, contracts).
-  - Normal internal overhead costs unless explicitly recorded as in-kind support.
+---
 
-We want the following derived concepts:
-- cash_revenue: sum of all cash inflows for the program.
-- non_monetary_revenue: as defined above.
-- total_revenue = cash_revenue + non_monetary_revenue.
-- Profit = total_revenue - program_cost.
-- Profit margin = Profit / total_revenue.
+## Field Mappings (Backward Compatibility)
 
---------------------------------
-TARGET DATA MODEL (SQLite)
---------------------------------
+If you're migrating from the old schema, the following field mappings apply:
 
-Please migrate towards this set of tables:
+| Old Field Name        | New Field Name         | Notes                                    |
+|-----------------------|------------------------|------------------------------------------|
+| `male`                | `male_participants`    | Integer instead of REAL                  |
+| `female`              | `female_participants`  | Integer instead of REAL                  |
+| `total_revenue_input` | `cash_revenue`         | Renamed for clarity                      |
+| `actual_revenue`      | `total_revenue`        | Renamed for clarity                      |
+| `trainers`            | _(removed)_            | Now tracked via module-trainer relations |
+| `local_trainer`       | _(removed)_            | Now tracked via module-trainer relations |
+| `expat_trainer`       | _(removed)_            | Now tracked via module-trainer relations |
+| `duration_days`       | _(removed from program)_ | Now at module level                    |
+| `unit_price`          | _(removed from program)_ | Now at module level                    |
 
-1) Programs
+The API will accept old field names for backward compatibility, but they will be mapped to the new field names internally.
 
-CREATE TABLE IF NOT EXISTS mli_ops_programs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  program TEXT NOT NULL UNIQUE,
-  status TEXT DEFAULT 'planned',
-  start_date TEXT,
-  end_date TEXT,
+---
 
-  number_of_participants INTEGER,
-  male_participants INTEGER,
-  female_participants INTEGER,
+## Error Responses
 
-  participant_fee REAL,
-  cash_revenue REAL,
-  non_monetary_revenue REAL,
-  total_revenue REAL,
-  program_cost REAL,
+All endpoints return standard error responses:
 
-  avg_content_rating REAL,
-  avg_delivery_rating REAL,
-  avg_overall_rating REAL,
+```json
+{
+  "success": false,
+  "error": "Error message here"
+}
+```
 
-  notes TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+**Common HTTP Status Codes:**
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request (validation error)
+- `404` - Not Found
+- `500` - Internal Server Error
 
-2) Modules
+---
 
-CREATE TABLE IF NOT EXISTS mli_ops_program_modules (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  program_id INTEGER NOT NULL,
-  name TEXT NOT NULL,
-  description TEXT,
-  duration_days REAL,
-  unit_price REAL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (program_id) REFERENCES mli_ops_programs(id) ON DELETE CASCADE,
-  UNIQUE (program_id, name)
-);
+## Notes for Front-End Development
 
-3) Trainers
+1. **Date Format**: All dates are in ISO 8601 format (`YYYY-MM-DD` for dates, full ISO string for datetimes)
 
-CREATE TABLE IF NOT EXISTS mli_ops_trainers (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  full_name TEXT NOT NULL,
-  trainer_type TEXT NOT NULL CHECK (trainer_type IN ('local', 'expat')),
-  email TEXT,
-  phone TEXT,
-  active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+2. **Revenue Calculation**: When creating/updating programs:
+   - If you don't provide `total_revenue`, it will be calculated as `cash_revenue + non_monetary_revenue`
+   - If you don't provide `cash_revenue`, it can be calculated as `number_of_participants * participant_fee`
 
-4) Module-Trainers (assignment)
+3. **Participant Counts**:
+   - If you provide `male_participants` and `female_participants`, `number_of_participants` will be calculated automatically
+   - You can also provide `number_of_participants` directly
 
-CREATE TABLE IF NOT EXISTS mli_ops_module_trainers (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  module_id INTEGER NOT NULL,
-  trainer_id INTEGER NOT NULL,
-  role TEXT,
-  trainer_fee REAL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (module_id) REFERENCES mli_ops_program_modules(id) ON DELETE CASCADE,
-  FOREIGN KEY (trainer_id) REFERENCES mli_ops_trainers(id) ON DELETE RESTRICT,
-  UNIQUE (module_id, trainer_id)
-);
+4. **Survey Ratings**:
+   - All ratings must be between 1 and 5
+   - Submit individual survey responses, and the system will calculate averages
 
-5) Program Surveys
+5. **Cascade Deletes**:
+   - Deleting a program will delete all its modules, and all module-trainer assignments
+   - Deleting a module will delete all its trainer assignments
+   - You cannot delete a trainer that is assigned to modules (remove assignments first)
 
-CREATE TABLE IF NOT EXISTS mli_ops_program_surveys (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  program_id INTEGER NOT NULL,
-  respondent_type TEXT,
-  content_rating INTEGER CHECK (content_rating BETWEEN 1 AND 5),
-  delivery_rating INTEGER CHECK (delivery_rating BETWEEN 1 AND 5),
-  overall_rating REAL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (program_id) REFERENCES mli_ops_programs(id) ON DELETE CASCADE
-);
+6. **Active/Inactive Trainers**:
+   - Use `active: 1` for active trainers, `active: 0` for inactive
+   - By default, `GET /api/mli-ops/trainers` returns only active trainers
+   - Use `?includeInactive=true` to get all trainers
 
---------------------------------
-TASKS FOR YOU (THE AI)
---------------------------------
+---
 
-1) DATABASE MIGRATION (SQLite)
-   - Generate safe, incremental SQL migration(s) to:
-     a) Add new columns to the existing mli_ops_programs table:
-        - male_participants (int)
-        - female_participants (int)
-        - cash_revenue (real)
-        - total_revenue (real)
-        - avg_content_rating (real)
-        - avg_delivery_rating (real)
-        - avg_overall_rating (real)
-     b) If feasible, migrate old numeric fields:
-        - Map `male` -> `male_participants`
-        - Map `female` -> `female_participants`
-        - Map `total_revenue_input` to `cash_revenue`
-        - Map `actual_revenue` to `total_revenue` (or recompute as cash_revenue + non_monetary_revenue if both available)
-     c) Drop or deprecate redundant / obsolete columns:
-        - trainers
-        - duration_days (if now handled at module level)
-        - total_revenue_input (once cash_revenue is in use)
-        - actual_revenue (once total_revenue is in use)
-        - local_trainer, expat_trainer (these will be derived from trainer assignments)
-     d) Create the new tables for modules, trainers, module_trainers, and program_surveys exactly as defined above.
-
-   - Ensure migrations are idempotent where possible (IF NOT EXISTS, etc.).
-
-2) BACKEND / API CHANGES
-   Our stack is <DESCRIBE YOUR STACK HERE, e.g. "Node.js + Express", "Django REST Framework", "Laravel", etc.>.
-   Update the code to:
-   - Reflect the new schema in the ORM / models / entities.
-   - Update existing endpoints for programs to expose:
-     - cash_revenue, non_monetary_revenue, total_revenue, program_cost
-     - computed profitability KPIs (profit and profit margin) as read-only fields if appropriate.
-     - aggregate quality metrics (avg_content_rating, avg_delivery_rating, avg_overall_rating), either from columns or computed on the fly from surveys.
-
-   - Add CRUD endpoints for:
-     a) Modules:
-        - List / create / update / delete modules per program.
-     b) Trainers:
-        - Master data CRUD for trainers.
-     c) Module–Trainers:
-        - Assign/unassign trainers to modules.
-        - Store trainer_fee per module.
-     d) Program Surveys:
-        - Create new survey responses for a program.
-        - Optionally list survey responses.
-        - Optionally add an endpoint that returns aggregated ratings for a program.
-
-3) ADMIN UI / BACKOFFICE
-   - Update the admin area (e.g. React Admin, Django admin, custom Vue/React, etc.) to:
-     - Show the new program fields for revenue and cost.
-     - Replace old `trainers`, `local_trainer`, `expat_trainer` numeric fields with:
-       - A "Trainers" section per program that lists modules and the trainers assigned.
-     - Add screens to manage:
-       - Trainers (list, create, edit, deactivate).
-       - Modules per program (list, create, edit, delete).
-       - Trainer assignment to modules, including role and trainer_fee.
-       - Program survey entries and aggregated ratings.
-
-   - Add a basic dashboard or report view that shows for each program:
-     - Program name / status / dates.
-     - number_of_participants, male_participants, female_participants.
-     - cash_revenue, non_monetary_revenue, total_revenue.
-     - program_cost, profit, profit margin.
-     - avg_content_rating, avg_delivery_rating, avg_overall_rating.
-
-4) DATA SAFETY
-   - Do not drop or rename any columns without first:
-     - Backing up data.
-     - Providing migration scripts that copy old data into new fields where possible.
-   - Where mapping is ambiguous (e.g. old fields not consistently populated), keep legacy fields but mark them as deprecated in the code and comments.
-
-5) OUTPUT FORMAT
-   - Provide:
-     - SQL migration script(s) for SQLite.
-     - Updated model/entity definitions.
-     - Updated or new API route definitions (with request/response shapes).
-     - Notes on admin UI forms and components that must be changed.
+**For questions or issues, contact the backend development team.**

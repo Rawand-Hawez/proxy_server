@@ -150,22 +150,20 @@ class DatabaseService {
       `CREATE TABLE IF NOT EXISTS mli_ops_programs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         program TEXT NOT NULL UNIQUE,
-        number_of_participants REAL,
-        male REAL,
-        female REAL,
-        trainers REAL,
-        local_trainer REAL,
-        expat_trainer REAL,
-        duration_days REAL,
-        unit_price REAL,
-        total_revenue_input REAL,
-        status TEXT,
+        number_of_participants INTEGER,
+        male_participants INTEGER,
+        female_participants INTEGER,
+        cash_revenue REAL,
+        non_monetary_revenue REAL,
+        total_revenue REAL,
+        program_cost REAL,
+        avg_content_rating REAL,
+        avg_delivery_rating REAL,
+        avg_overall_rating REAL,
+        participant_fee REAL,
+        status TEXT DEFAULT 'planned',
         start_date TEXT,
         end_date TEXT,
-        participant_fee REAL,
-        non_monetary_revenue REAL,
-        actual_revenue REAL,
-        program_cost REAL,
         notes TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -954,37 +952,7 @@ class DatabaseService {
   // ==========================================
 
   async ensureMliOpsSchema() {
-    try {
-      // Add program_cost column (backward compat)
-      await this.runQuery('ALTER TABLE mli_ops_programs ADD COLUMN program_cost REAL');
-    } catch (error) {
-      if (!error.message.includes('duplicate column name')) {
-        throw error;
-      }
-    }
-
-    // Add new columns for migration to new schema
-    const newColumns = [
-      'ALTER TABLE mli_ops_programs ADD COLUMN male_participants INTEGER',
-      'ALTER TABLE mli_ops_programs ADD COLUMN female_participants INTEGER',
-      'ALTER TABLE mli_ops_programs ADD COLUMN cash_revenue REAL',
-      'ALTER TABLE mli_ops_programs ADD COLUMN total_revenue REAL',
-      'ALTER TABLE mli_ops_programs ADD COLUMN avg_content_rating REAL',
-      'ALTER TABLE mli_ops_programs ADD COLUMN avg_delivery_rating REAL',
-      'ALTER TABLE mli_ops_programs ADD COLUMN avg_overall_rating REAL'
-    ];
-
-    for (const columnQuery of newColumns) {
-      try {
-        await this.runQuery(columnQuery);
-      } catch (error) {
-        if (!error.message.includes('duplicate column name')) {
-          console.warn('Column migration warning:', error.message);
-        }
-      }
-    }
-
-    // Create new tables
+    // Create new tables for modules, trainers, and surveys
     const newTables = [
       // Program Modules
       `CREATE TABLE IF NOT EXISTS mli_ops_program_modules (
@@ -1114,20 +1082,34 @@ class DatabaseService {
       return Number.isNaN(num) ? null : num;
     };
 
+    const toInteger = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const num = parseInt(value, 10);
+      return Number.isNaN(num) ? null : num;
+    };
+
     const trimDate = (value) => {
       if (!value) return null;
       return String(value).split('T')[0];
     };
 
-    const participants = toNumber(program.number_of_participants);
-    const localTrainer = toNumber(program.local_trainer) || 0;
-    const expatTrainer = toNumber(program.expat_trainer) || 0;
+    const participants = toInteger(program.number_of_participants);
+    const maleParticipants = toInteger(program.male_participants || program.male);
+    const femaleParticipants = toInteger(program.female_participants || program.female);
     const participantFee = toNumber(program.participant_fee);
     const nonMonetaryRevenue = toNumber(program.non_monetary_revenue);
-    const actualRevenue = toNumber(program.actual_revenue);
-    const totalRevenueInput = program.total_revenue_input !== undefined
-      ? toNumber(program.total_revenue_input)
-      : (participants && participantFee ? participants * participantFee : null);
+
+    // Calculate cash_revenue
+    const cashRevenue = toNumber(program.cash_revenue) ||
+                       toNumber(program.total_revenue_input) ||
+                       (participants && participantFee ? participants * participantFee : null);
+
+    // Calculate total_revenue
+    const totalRevenue = toNumber(program.total_revenue) ||
+                        toNumber(program.actual_revenue) ||
+                        ((cashRevenue || 0) + (nonMonetaryRevenue || 0)) || null;
 
     let status = program.status;
     if (!status || status === 'auto') {
@@ -1135,7 +1117,7 @@ class DatabaseService {
       const startDate = trimDate(program.start_date);
       if (startDate && startDate > today) {
         status = 'planned';
-      } else if ((participants || 0) > 0 || (actualRevenue || 0) > 0) {
+      } else if ((participants || 0) > 0 || (totalRevenue || 0) > 0) {
         status = 'completed';
       } else {
         status = 'planned';
@@ -1147,21 +1129,19 @@ class DatabaseService {
     const payload = [
       program.program.trim(),
       participants,
-      toNumber(program.male),
-      toNumber(program.female),
-      localTrainer + expatTrainer,
-      localTrainer,
-      expatTrainer,
-      toNumber(program.duration_days),
-      toNumber(program.unit_price),
-      totalRevenueInput,
+      maleParticipants,
+      femaleParticipants,
+      cashRevenue,
+      nonMonetaryRevenue,
+      totalRevenue,
+      programCost,
+      toNumber(program.avg_content_rating),
+      toNumber(program.avg_delivery_rating),
+      toNumber(program.avg_overall_rating),
+      participantFee,
       status,
       trimDate(program.start_date),
       trimDate(program.end_date),
-      participantFee,
-      nonMonetaryRevenue,
-      actualRevenue,
-      programCost,
       program.notes || null
     ];
 
@@ -1171,21 +1151,19 @@ class DatabaseService {
           UPDATE mli_ops_programs SET
             program = ?,
             number_of_participants = ?,
-            male = ?,
-            female = ?,
-            trainers = ?,
-            local_trainer = ?,
-            expat_trainer = ?,
-            duration_days = ?,
-            unit_price = ?,
-            total_revenue_input = ?,
+            male_participants = ?,
+            female_participants = ?,
+            cash_revenue = ?,
+            non_monetary_revenue = ?,
+            total_revenue = ?,
+            program_cost = ?,
+            avg_content_rating = ?,
+            avg_delivery_rating = ?,
+            avg_overall_rating = ?,
+            participant_fee = ?,
             status = ?,
             start_date = ?,
             end_date = ?,
-            participant_fee = ?,
-            non_monetary_revenue = ?,
-            actual_revenue = ?,
-            program_cost = ?,
             notes = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
@@ -1195,10 +1173,11 @@ class DatabaseService {
 
       const result = await this.runQuery(`
         INSERT INTO mli_ops_programs (
-          program, number_of_participants, male, female, trainers, local_trainer, expat_trainer,
-          duration_days, unit_price, total_revenue_input, status, start_date, end_date,
-          participant_fee, non_monetary_revenue, actual_revenue, program_cost, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          program, number_of_participants, male_participants, female_participants,
+          cash_revenue, non_monetary_revenue, total_revenue, program_cost,
+          avg_content_rating, avg_delivery_rating, avg_overall_rating,
+          participant_fee, status, start_date, end_date, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, payload);
       return result.id;
     } catch (error) {
