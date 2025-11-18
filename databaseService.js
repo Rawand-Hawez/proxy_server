@@ -175,6 +175,7 @@ class DatabaseService {
         await this.runQuery(table);
       }
       await this.ensureMliOpsSchema();
+      await this.ensurePropertyRentalSchema();
       console.log('Database tables created successfully');
       this.initialized = true;
     } catch (error) {
@@ -1614,6 +1615,733 @@ class DatabaseService {
       return aggregates;
     } catch (error) {
       console.error('Error updating program survey aggregates:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // PROPERTY RENTAL MANAGEMENT
+  // ==========================================
+
+  async ensurePropertyRentalSchema() {
+    const tables = [
+      // Buildings
+      `CREATE TABLE IF NOT EXISTS buildings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        code TEXT NOT NULL UNIQUE,
+        address TEXT,
+        notes TEXT
+      )`,
+
+      // Floors
+      `CREATE TABLE IF NOT EXISTS floors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        building_id INTEGER NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        level_no INTEGER,
+        sort_order INTEGER NOT NULL,
+        UNIQUE (building_id, label)
+      )`,
+
+      // Units
+      `CREATE TABLE IF NOT EXISTS units (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        building_id INTEGER NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
+        floor_id INTEGER NOT NULL REFERENCES floors(id) ON DELETE RESTRICT,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        usage_type TEXT NOT NULL,
+        rental_area_sqm REAL NOT NULL,
+        status TEXT NOT NULL DEFAULT 'vacant',
+        is_active INTEGER NOT NULL DEFAULT 1,
+        notes TEXT,
+        UNIQUE (building_id, code)
+      )`,
+
+      // Tenants
+      `CREATE TABLE IF NOT EXISTS tenants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        category TEXT,
+        contact_name TEXT,
+        contact_phone TEXT,
+        contact_email TEXT,
+        notes TEXT
+      )`,
+
+      // Leases
+      `CREATE TABLE IF NOT EXISTS leases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        unit_id INTEGER NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+        start_date TEXT,
+        end_date TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        rent_currency TEXT,
+        rent_amount REAL,
+        raw_period_text TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`
+    ];
+
+    for (const tableQuery of tables) {
+      try {
+        await this.runQuery(tableQuery);
+      } catch (error) {
+        console.error('Error creating property rental table:', error);
+      }
+    }
+
+    // Create trigger for leases update timestamp
+    try {
+      await this.runQuery(`
+        CREATE TRIGGER IF NOT EXISTS leases_update_timestamp
+        AFTER UPDATE ON leases
+        BEGIN
+          UPDATE leases SET updated_at = datetime('now') WHERE id = NEW.id;
+        END
+      `);
+    } catch (error) {
+      console.error('Error creating leases trigger:', error);
+    }
+
+    // Create indexes for performance
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS idx_floors_building_id ON floors(building_id)',
+      'CREATE INDEX IF NOT EXISTS idx_units_building_id ON units(building_id)',
+      'CREATE INDEX IF NOT EXISTS idx_units_floor_id ON units(floor_id)',
+      'CREATE INDEX IF NOT EXISTS idx_units_status ON units(status)',
+      'CREATE INDEX IF NOT EXISTS idx_leases_unit_id ON leases(unit_id)',
+      'CREATE INDEX IF NOT EXISTS idx_leases_tenant_id ON leases(tenant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_leases_status ON leases(status)'
+    ];
+
+    for (const indexQuery of indexes) {
+      try {
+        await this.runQuery(indexQuery);
+      } catch (error) {
+        if (!error.message.includes('already exists')) {
+          console.warn('Index creation warning:', error.message);
+        }
+      }
+    }
+  }
+
+  // ==========================================
+  // BUILDINGS
+  // ==========================================
+
+  async getAllBuildings() {
+    try {
+      return await this.allQuery('SELECT * FROM buildings ORDER BY name');
+    } catch (error) {
+      console.error('Error fetching buildings:', error);
+      throw error;
+    }
+  }
+
+  async getBuildingById(id) {
+    try {
+      return await this.getQuery('SELECT * FROM buildings WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error fetching building:', error);
+      throw error;
+    }
+  }
+
+  async createBuilding(buildingData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO buildings (name, code, address, notes)
+         VALUES (?, ?, ?, ?)`,
+        [
+          buildingData.name,
+          buildingData.code,
+          buildingData.address || null,
+          buildingData.notes || null
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating building:', error);
+      throw error;
+    }
+  }
+
+  async updateBuilding(id, buildingData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE buildings SET
+          name = ?,
+          code = ?,
+          address = ?,
+          notes = ?
+         WHERE id = ?`,
+        [
+          buildingData.name,
+          buildingData.code,
+          buildingData.address || null,
+          buildingData.notes || null,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating building:', error);
+      throw error;
+    }
+  }
+
+  async deleteBuilding(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM buildings WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting building:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // FLOORS
+  // ==========================================
+
+  async getFloorsByBuildingId(buildingId) {
+    try {
+      return await this.allQuery(
+        'SELECT * FROM floors WHERE building_id = ? ORDER BY sort_order',
+        [buildingId]
+      );
+    } catch (error) {
+      console.error('Error fetching floors:', error);
+      throw error;
+    }
+  }
+
+  async getFloorById(id) {
+    try {
+      return await this.getQuery('SELECT * FROM floors WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error fetching floor:', error);
+      throw error;
+    }
+  }
+
+  async createFloor(floorData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO floors (building_id, label, level_no, sort_order)
+         VALUES (?, ?, ?, ?)`,
+        [
+          floorData.building_id || floorData.buildingId,
+          floorData.label,
+          floorData.level_no || floorData.levelNo || null,
+          floorData.sort_order || floorData.sortOrder
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating floor:', error);
+      throw error;
+    }
+  }
+
+  async updateFloor(id, floorData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE floors SET
+          label = ?,
+          level_no = ?,
+          sort_order = ?
+         WHERE id = ?`,
+        [
+          floorData.label,
+          floorData.level_no || floorData.levelNo || null,
+          floorData.sort_order || floorData.sortOrder,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating floor:', error);
+      throw error;
+    }
+  }
+
+  async deleteFloor(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM floors WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting floor:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // UNITS
+  // ==========================================
+
+  async generateUnitCode(buildingId, floorId) {
+    try {
+      // Get building code
+      const building = await this.getBuildingById(buildingId);
+      if (!building) throw new Error('Building not found');
+
+      // Get floor label
+      const floor = await this.getFloorById(floorId);
+      if (!floor) throw new Error('Floor not found');
+
+      // Get next sequential number for this floor
+      const result = await this.getQuery(
+        `SELECT MAX(CAST(SUBSTR(code, -2) AS INTEGER)) as max_seq
+         FROM units
+         WHERE building_id = ? AND floor_id = ?`,
+        [buildingId, floorId]
+      );
+
+      const nextSeq = (result?.max_seq || 0) + 1;
+      const seqStr = String(nextSeq).padStart(2, '0');
+
+      return `${building.code}-${floor.label}-${seqStr}`;
+    } catch (error) {
+      console.error('Error generating unit code:', error);
+      throw error;
+    }
+  }
+
+  validateUnitCode(code) {
+    // Regex: ^[A-Z0-9]{2,4}-(GF|RF|PK|EX|B[0-9]+|[0-9]{2})-[0-9]{2}$
+    const regex = /^[A-Z0-9]{2,4}-(GF|RF|PK|EX|B[0-9]+|[0-9]{2})-[0-9]{2}$/;
+    return regex.test(code);
+  }
+
+  async getAllUnits(limit = 1000, offset = 0) {
+    try {
+      return await this.allQuery(
+        'SELECT * FROM units ORDER BY building_id, floor_id, code LIMIT ? OFFSET ?',
+        [limit, offset]
+      );
+    } catch (error) {
+      console.error('Error fetching units:', error);
+      throw error;
+    }
+  }
+
+  async getUnitsByBuildingId(buildingId, status = null) {
+    try {
+      let query = 'SELECT * FROM units WHERE building_id = ?';
+      const params = [buildingId];
+
+      if (status) {
+        query += ' AND status = ?';
+        params.push(status);
+      }
+
+      query += ' ORDER BY floor_id, code';
+      return await this.allQuery(query, params);
+    } catch (error) {
+      console.error('Error fetching units by building:', error);
+      throw error;
+    }
+  }
+
+  async getUnitsByFloorId(floorId) {
+    try {
+      return await this.allQuery(
+        'SELECT * FROM units WHERE floor_id = ? ORDER BY code',
+        [floorId]
+      );
+    } catch (error) {
+      console.error('Error fetching units by floor:', error);
+      throw error;
+    }
+  }
+
+  async getUnitById(id) {
+    try {
+      return await this.getQuery('SELECT * FROM units WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error fetching unit:', error);
+      throw error;
+    }
+  }
+
+  async createUnit(unitData) {
+    try {
+      // Auto-generate code if not provided
+      let code = unitData.code;
+      if (!code) {
+        code = await this.generateUnitCode(
+          unitData.building_id || unitData.buildingId,
+          unitData.floor_id || unitData.floorId
+        );
+      }
+
+      // Validate code format
+      if (!this.validateUnitCode(code)) {
+        throw new Error(`Invalid unit code format: ${code}`);
+      }
+
+      const result = await this.runQuery(
+        `INSERT INTO units (building_id, floor_id, code, name, usage_type, rental_area_sqm, status, is_active, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          unitData.building_id || unitData.buildingId,
+          unitData.floor_id || unitData.floorId,
+          code,
+          unitData.name,
+          unitData.usage_type || unitData.usageType,
+          unitData.rental_area_sqm || unitData.rentalAreaSqm,
+          unitData.status || 'vacant',
+          unitData.is_active !== undefined ? unitData.is_active : (unitData.isActive !== undefined ? unitData.isActive : 1),
+          unitData.notes || null
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating unit:', error);
+      throw error;
+    }
+  }
+
+  async updateUnit(id, unitData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE units SET
+          name = ?,
+          usage_type = ?,
+          rental_area_sqm = ?,
+          status = ?,
+          is_active = ?,
+          notes = ?
+         WHERE id = ?`,
+        [
+          unitData.name,
+          unitData.usage_type || unitData.usageType,
+          unitData.rental_area_sqm || unitData.rentalAreaSqm,
+          unitData.status,
+          unitData.is_active !== undefined ? unitData.is_active : (unitData.isActive !== undefined ? unitData.isActive : 1),
+          unitData.notes || null,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating unit:', error);
+      throw error;
+    }
+  }
+
+  async deleteUnit(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM units WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting unit:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // TENANTS
+  // ==========================================
+
+  async getAllTenants(searchQuery = null) {
+    try {
+      if (searchQuery) {
+        return await this.allQuery(
+          `SELECT * FROM tenants
+           WHERE name LIKE ? OR contact_name LIKE ? OR contact_email LIKE ?
+           ORDER BY name`,
+          [`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`]
+        );
+      }
+      return await this.allQuery('SELECT * FROM tenants ORDER BY name');
+    } catch (error) {
+      console.error('Error fetching tenants:', error);
+      throw error;
+    }
+  }
+
+  async getTenantById(id) {
+    try {
+      return await this.getQuery('SELECT * FROM tenants WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error fetching tenant:', error);
+      throw error;
+    }
+  }
+
+  async createTenant(tenantData) {
+    try {
+      const result = await this.runQuery(
+        `INSERT INTO tenants (name, category, contact_name, contact_phone, contact_email, notes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          tenantData.name,
+          tenantData.category || null,
+          tenantData.contact_name || tenantData.contactName || null,
+          tenantData.contact_phone || tenantData.contactPhone || null,
+          tenantData.contact_email || tenantData.contactEmail || null,
+          tenantData.notes || null
+        ]
+      );
+      return result.id;
+    } catch (error) {
+      console.error('Error creating tenant:', error);
+      throw error;
+    }
+  }
+
+  async updateTenant(id, tenantData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE tenants SET
+          name = ?,
+          category = ?,
+          contact_name = ?,
+          contact_phone = ?,
+          contact_email = ?,
+          notes = ?
+         WHERE id = ?`,
+        [
+          tenantData.name,
+          tenantData.category || null,
+          tenantData.contact_name || tenantData.contactName || null,
+          tenantData.contact_phone || tenantData.contactPhone || null,
+          tenantData.contact_email || tenantData.contactEmail || null,
+          tenantData.notes || null,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating tenant:', error);
+      throw error;
+    }
+  }
+
+  async deleteTenant(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM tenants WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting tenant:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // LEASES
+  // ==========================================
+
+  async getLeasesByUnitId(unitId) {
+    try {
+      return await this.allQuery(
+        'SELECT * FROM leases WHERE unit_id = ? ORDER BY start_date DESC',
+        [unitId]
+      );
+    } catch (error) {
+      console.error('Error fetching leases by unit:', error);
+      throw error;
+    }
+  }
+
+  async getLeaseById(id) {
+    try {
+      return await this.getQuery('SELECT * FROM leases WHERE id = ?', [id]);
+    } catch (error) {
+      console.error('Error fetching lease:', error);
+      throw error;
+    }
+  }
+
+  async createLease(leaseData) {
+    try {
+      // Start transaction
+      await this.runQuery('BEGIN TRANSACTION');
+
+      // Create lease
+      const result = await this.runQuery(
+        `INSERT INTO leases (unit_id, tenant_id, start_date, end_date, status, rent_currency, rent_amount, raw_period_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          leaseData.unit_id || leaseData.unitId,
+          leaseData.tenant_id || leaseData.tenantId,
+          leaseData.start_date || leaseData.startDate || null,
+          leaseData.end_date || leaseData.endDate || null,
+          leaseData.status || 'active',
+          leaseData.rent_currency || leaseData.rentCurrency || null,
+          leaseData.rent_amount || leaseData.rentAmount || null,
+          leaseData.raw_period_text || leaseData.rawPeriodText || null
+        ]
+      );
+
+      // Update unit status to occupied if lease is active
+      if (!leaseData.status || leaseData.status === 'active') {
+        await this.runQuery(
+          'UPDATE units SET status = ? WHERE id = ?',
+          ['occupied', leaseData.unit_id || leaseData.unitId]
+        );
+      }
+
+      await this.runQuery('COMMIT');
+      return result.id;
+    } catch (error) {
+      await this.runQuery('ROLLBACK');
+      console.error('Error creating lease:', error);
+      throw error;
+    }
+  }
+
+  async updateLease(id, leaseData) {
+    try {
+      const result = await this.runQuery(
+        `UPDATE leases SET
+          start_date = ?,
+          end_date = ?,
+          status = ?,
+          rent_currency = ?,
+          rent_amount = ?,
+          raw_period_text = ?
+         WHERE id = ?`,
+        [
+          leaseData.start_date || leaseData.startDate || null,
+          leaseData.end_date || leaseData.endDate || null,
+          leaseData.status || 'active',
+          leaseData.rent_currency || leaseData.rentCurrency || null,
+          leaseData.rent_amount || leaseData.rentAmount || null,
+          leaseData.raw_period_text || leaseData.rawPeriodText || null,
+          id
+        ]
+      );
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error updating lease:', error);
+      throw error;
+    }
+  }
+
+  async terminateLease(id) {
+    try {
+      await this.runQuery('BEGIN TRANSACTION');
+
+      // Get lease info
+      const lease = await this.getLeaseById(id);
+      if (!lease) {
+        await this.runQuery('ROLLBACK');
+        return false;
+      }
+
+      // Update lease status
+      await this.runQuery(
+        'UPDATE leases SET status = ? WHERE id = ?',
+        ['terminated', id]
+      );
+
+      // Update unit status to vacant
+      await this.runQuery(
+        'UPDATE units SET status = ? WHERE id = ?',
+        ['vacant', lease.unit_id]
+      );
+
+      await this.runQuery('COMMIT');
+      return true;
+    } catch (error) {
+      await this.runQuery('ROLLBACK');
+      console.error('Error terminating lease:', error);
+      throw error;
+    }
+  }
+
+  async deleteLease(id) {
+    try {
+      const result = await this.runQuery('DELETE FROM leases WHERE id = ?', [id]);
+      return result.changes > 0;
+    } catch (error) {
+      console.error('Error deleting lease:', error);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // PROPERTY REPORTS
+  // ==========================================
+
+  async getVacancyReport(buildingId = null) {
+    try {
+      let whereClause = '';
+      const params = [];
+
+      if (buildingId) {
+        whereClause = 'WHERE building_id = ?';
+        params.push(buildingId);
+      }
+
+      const stats = await this.getQuery(`
+        SELECT
+          COUNT(*) as total_units,
+          SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) as occupied_units,
+          SUM(CASE WHEN status = 'vacant' THEN 1 ELSE 0 END) as vacant_units,
+          SUM(rental_area_sqm) as total_area,
+          SUM(CASE WHEN status = 'occupied' THEN rental_area_sqm ELSE 0 END) as rented_area,
+          SUM(CASE WHEN status = 'vacant' THEN rental_area_sqm ELSE 0 END) as vacant_area
+        FROM units
+        ${whereClause}
+      `, params);
+
+      const totalUnits = stats?.total_units || 0;
+      const occupiedUnits = stats?.occupied_units || 0;
+      const vacantUnits = stats?.vacant_units || 0;
+      const totalArea = stats?.total_area || 0;
+      const rentedArea = stats?.rented_area || 0;
+      const vacantArea = stats?.vacant_area || 0;
+
+      const occupancyPercent = totalUnits > 0
+        ? Math.round((occupiedUnits / totalUnits) * 10000) / 100
+        : 0;
+
+      return {
+        total_units: totalUnits,
+        occupied_units: occupiedUnits,
+        vacant_units: vacantUnits,
+        total_area: totalArea,
+        rented_area: rentedArea,
+        vacant_area: vacantArea,
+        occupancy_percent: occupancyPercent
+      };
+    } catch (error) {
+      console.error('Error generating vacancy report:', error);
+      throw error;
+    }
+  }
+
+  async getExpiringLeases(buildingId = null, withinDays = 90) {
+    try {
+      let query = `
+        SELECT l.*, u.code as unit_code, u.name as unit_name, t.name as tenant_name
+        FROM leases l
+        JOIN units u ON l.unit_id = u.id
+        JOIN tenants t ON l.tenant_id = t.id
+        WHERE l.status = 'active'
+        AND l.end_date IS NOT NULL
+        AND l.end_date <= date('now', '+' || ? || ' days')
+      `;
+      const params = [withinDays];
+
+      if (buildingId) {
+        query += ' AND u.building_id = ?';
+        params.push(buildingId);
+      }
+
+      query += ' ORDER BY l.end_date ASC';
+
+      return await this.allQuery(query, params);
+    } catch (error) {
+      console.error('Error fetching expiring leases:', error);
       throw error;
     }
   }

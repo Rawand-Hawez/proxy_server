@@ -1994,6 +1994,552 @@ app.delete('/api/mli-ops/surveys/:id', async (req, res) => {
 });
 
 // ==========================================
+// PROPERTY RENTAL MANAGEMENT API
+// ==========================================
+
+// Buildings Endpoints
+app.get('/api/property/buildings', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const buildings = await databaseService.getAllBuildings();
+    res.json({ success: true, count: buildings.length, data: buildings });
+  } catch (error) {
+    console.error('Error fetching buildings:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/property/buildings/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid building ID' });
+    }
+
+    const building = await databaseService.getBuildingById(id);
+    if (!building) {
+      return res.status(404).json({ success: false, error: 'Building not found' });
+    }
+
+    res.json({ success: true, data: building });
+  } catch (error) {
+    console.error('Error fetching building:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/property/buildings', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const { name, code, address, notes } = req.body;
+    if (!name || !code) {
+      return res.status(400).json({ success: false, error: 'Name and code are required' });
+    }
+
+    const buildingId = await databaseService.createBuilding(req.body);
+    const building = await databaseService.getBuildingById(buildingId);
+    res.status(201).json({ success: true, data: building });
+  } catch (error) {
+    console.error('Error creating building:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/property/buildings/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid building ID' });
+    }
+
+    const existing = await databaseService.getBuildingById(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Building not found' });
+    }
+
+    await databaseService.updateBuilding(id, req.body);
+    const building = await databaseService.getBuildingById(id);
+    res.json({ success: true, data: building });
+  } catch (error) {
+    console.error('Error updating building:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Floors Endpoints
+app.get('/api/property/buildings/:id/floors', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const buildingId = parseInt(req.params.id, 10);
+    if (Number.isNaN(buildingId)) {
+      return res.status(400).json({ success: false, error: 'Invalid building ID' });
+    }
+
+    const floors = await databaseService.getFloorsByBuildingId(buildingId);
+    res.json({ success: true, count: floors.length, data: floors });
+  } catch (error) {
+    console.error('Error fetching floors:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/property/floors/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid floor ID' });
+    }
+
+    const floor = await databaseService.getFloorById(id);
+    if (!floor) {
+      return res.status(404).json({ success: false, error: 'Floor not found' });
+    }
+
+    res.json({ success: true, data: floor });
+  } catch (error) {
+    console.error('Error fetching floor:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/property/floors', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const { building_id, buildingId, label, sort_order, sortOrder } = req.body;
+    const bId = building_id || buildingId;
+    const sOrder = sort_order || sortOrder;
+
+    if (!bId || !label || sOrder === undefined) {
+      return res.status(400).json({ success: false, error: 'building_id, label, and sort_order are required' });
+    }
+
+    const floorId = await databaseService.createFloor(req.body);
+    const floor = await databaseService.getFloorById(floorId);
+    res.status(201).json({ success: true, data: floor });
+  } catch (error) {
+    console.error('Error creating floor:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/property/floors/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid floor ID' });
+    }
+
+    const existing = await databaseService.getFloorById(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Floor not found' });
+    }
+
+    await databaseService.updateFloor(id, req.body);
+    const floor = await databaseService.getFloorById(id);
+    res.json({ success: true, data: floor });
+  } catch (error) {
+    console.error('Error updating floor:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Units Endpoints
+app.get('/api/property/buildings/:id/units', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const buildingId = parseInt(req.params.id, 10);
+    if (Number.isNaN(buildingId)) {
+      return res.status(400).json({ success: false, error: 'Invalid building ID' });
+    }
+
+    const status = req.query.status || null;
+    const units = await databaseService.getUnitsByBuildingId(buildingId, status);
+    res.json({ success: true, count: units.length, data: units });
+  } catch (error) {
+    console.error('Error fetching units:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/property/floors/:id/units', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const floorId = parseInt(req.params.id, 10);
+    if (Number.isNaN(floorId)) {
+      return res.status(400).json({ success: false, error: 'Invalid floor ID' });
+    }
+
+    const units = await databaseService.getUnitsByFloorId(floorId);
+    res.json({ success: true, count: units.length, data: units });
+  } catch (error) {
+    console.error('Error fetching units:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/property/units/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid unit ID' });
+    }
+
+    const unit = await databaseService.getUnitById(id);
+    if (!unit) {
+      return res.status(404).json({ success: false, error: 'Unit not found' });
+    }
+
+    res.json({ success: true, data: unit });
+  } catch (error) {
+    console.error('Error fetching unit:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/property/units', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const { building_id, buildingId, floor_id, floorId, name, usage_type, usageType, rental_area_sqm, rentalAreaSqm } = req.body;
+    const bId = building_id || buildingId;
+    const fId = floor_id || floorId;
+    const uType = usage_type || usageType;
+    const rArea = rental_area_sqm || rentalAreaSqm;
+
+    if (!bId || !fId || !name || !uType || !rArea) {
+      return res.status(400).json({ success: false, error: 'building_id, floor_id, name, usage_type, and rental_area_sqm are required' });
+    }
+
+    const unitId = await databaseService.createUnit(req.body);
+    const unit = await databaseService.getUnitById(unitId);
+    res.status(201).json({ success: true, data: unit });
+  } catch (error) {
+    console.error('Error creating unit:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/property/units/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid unit ID' });
+    }
+
+    const existing = await databaseService.getUnitById(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Unit not found' });
+    }
+
+    await databaseService.updateUnit(id, req.body);
+    const unit = await databaseService.getUnitById(id);
+    res.json({ success: true, data: unit });
+  } catch (error) {
+    console.error('Error updating unit:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/property/units/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid unit ID' });
+    }
+
+    const deleted = await databaseService.deleteUnit(id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Unit not found' });
+    }
+
+    res.json({ success: true, message: 'Unit deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting unit:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Tenants Endpoints
+app.get('/api/property/tenants', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const searchQuery = req.query.q || null;
+    const tenants = await databaseService.getAllTenants(searchQuery);
+    res.json({ success: true, count: tenants.length, data: tenants });
+  } catch (error) {
+    console.error('Error fetching tenants:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/property/tenants/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid tenant ID' });
+    }
+
+    const tenant = await databaseService.getTenantById(id);
+    if (!tenant) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+
+    res.json({ success: true, data: tenant });
+  } catch (error) {
+    console.error('Error fetching tenant:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/property/tenants', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Tenant name is required' });
+    }
+
+    const tenantId = await databaseService.createTenant(req.body);
+    const tenant = await databaseService.getTenantById(tenantId);
+    res.status(201).json({ success: true, data: tenant });
+  } catch (error) {
+    console.error('Error creating tenant:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/property/tenants/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid tenant ID' });
+    }
+
+    const existing = await databaseService.getTenantById(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+
+    await databaseService.updateTenant(id, req.body);
+    const tenant = await databaseService.getTenantById(id);
+    res.json({ success: true, data: tenant });
+  } catch (error) {
+    console.error('Error updating tenant:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Leases Endpoints
+app.get('/api/property/units/:id/leases', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const unitId = parseInt(req.params.id, 10);
+    if (Number.isNaN(unitId)) {
+      return res.status(400).json({ success: false, error: 'Invalid unit ID' });
+    }
+
+    const leases = await databaseService.getLeasesByUnitId(unitId);
+    res.json({ success: true, count: leases.length, data: leases });
+  } catch (error) {
+    console.error('Error fetching leases:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/property/leases/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid lease ID' });
+    }
+
+    const lease = await databaseService.getLeaseById(id);
+    if (!lease) {
+      return res.status(404).json({ success: false, error: 'Lease not found' });
+    }
+
+    res.json({ success: true, data: lease });
+  } catch (error) {
+    console.error('Error fetching lease:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/property/leases', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const { unit_id, unitId, tenant_id, tenantId } = req.body;
+    const uId = unit_id || unitId;
+    const tId = tenant_id || tenantId;
+
+    if (!uId || !tId) {
+      return res.status(400).json({ success: false, error: 'unit_id and tenant_id are required' });
+    }
+
+    const leaseId = await databaseService.createLease(req.body);
+    const lease = await databaseService.getLeaseById(leaseId);
+    res.status(201).json({ success: true, data: lease });
+  } catch (error) {
+    console.error('Error creating lease:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/property/leases/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid lease ID' });
+    }
+
+    const existing = await databaseService.getLeaseById(id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Lease not found' });
+    }
+
+    await databaseService.updateLease(id, req.body);
+    const lease = await databaseService.getLeaseById(id);
+    res.json({ success: true, data: lease });
+  } catch (error) {
+    console.error('Error updating lease:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/property/leases/:id/terminate', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid lease ID' });
+    }
+
+    const terminated = await databaseService.terminateLease(id);
+    if (!terminated) {
+      return res.status(404).json({ success: false, error: 'Lease not found' });
+    }
+
+    const lease = await databaseService.getLeaseById(id);
+    res.json({ success: true, message: 'Lease terminated successfully', data: lease });
+  } catch (error) {
+    console.error('Error terminating lease:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reports Endpoints
+app.get('/api/property/reports/vacancy', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : null;
+    const report = await databaseService.getVacancyReport(buildingId);
+    res.json({ success: true, data: report });
+  } catch (error) {
+    console.error('Error generating vacancy report:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/property/reports/expiring', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : null;
+    const withinDays = req.query.withinDays ? parseInt(req.query.withinDays, 10) : 90;
+
+    const leases = await databaseService.getExpiringLeases(buildingId, withinDays);
+    res.json({ success: true, count: leases.length, data: leases });
+  } catch (error) {
+    console.error('Error fetching expiring leases:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
 // TopCare API Proxy Endpoints
 // ==========================================
 
