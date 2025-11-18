@@ -2071,7 +2071,9 @@ app.put('/api/property/buildings/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Building not found' });
     }
 
-    await databaseService.updateBuilding(id, req.body);
+    // Merge existing data with updates
+    const updatedData = { ...existing, ...req.body };
+    await databaseService.updateBuilding(id, updatedData);
     const building = await databaseService.getBuildingById(id);
     res.json({ success: true, data: building });
   } catch (error) {
@@ -2162,7 +2164,9 @@ app.put('/api/property/floors/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Floor not found' });
     }
 
-    await databaseService.updateFloor(id, req.body);
+    // Merge existing data with updates
+    const updatedData = { ...existing, ...req.body };
+    await databaseService.updateFloor(id, updatedData);
     const floor = await databaseService.getFloorById(id);
     res.json({ success: true, data: floor });
   } catch (error) {
@@ -2275,7 +2279,9 @@ app.put('/api/property/units/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Unit not found' });
     }
 
-    await databaseService.updateUnit(id, req.body);
+    // Merge existing data with updates
+    const updatedData = { ...existing, ...req.body };
+    await databaseService.updateUnit(id, updatedData);
     const unit = await databaseService.getUnitById(id);
     res.json({ success: true, data: unit });
   } catch (error) {
@@ -2382,7 +2388,9 @@ app.put('/api/property/tenants/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Tenant not found' });
     }
 
-    await databaseService.updateTenant(id, req.body);
+    // Merge existing data with updates
+    const updatedData = { ...existing, ...req.body };
+    await databaseService.updateTenant(id, updatedData);
     const tenant = await databaseService.getTenantById(id);
     res.json({ success: true, data: tenant });
   } catch (error) {
@@ -2473,7 +2481,9 @@ app.put('/api/property/leases/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Lease not found' });
     }
 
-    await databaseService.updateLease(id, req.body);
+    // Merge existing data with updates
+    const updatedData = { ...existing, ...req.body };
+    await databaseService.updateLease(id, updatedData);
     const lease = await databaseService.getLeaseById(id);
     res.json({ success: true, data: lease });
   } catch (error) {
