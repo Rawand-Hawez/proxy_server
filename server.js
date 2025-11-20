@@ -16,6 +16,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DOCS_PAGE_PATH = path.join(__dirname, 'public', 'docs.html');
 
+// Trust proxy for Coolify/Docker deployments
+app.set('trust proxy', 1);
+
 // Configure CORS with optional allowed origins env
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '*')
   .split(',')
@@ -2512,6 +2515,29 @@ app.post('/api/property/leases/:id/terminate', authenticateToken, async (req, re
     res.json({ success: true, message: 'Lease terminated successfully', data: lease });
   } catch (error) {
     console.error('Error terminating lease:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/property/leases/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!databaseService) {
+      return res.status(503).json({ success: false, error: 'Database service not available' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid lease ID' });
+    }
+
+    const deleted = await databaseService.deleteLease(id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Lease not found' });
+    }
+
+    res.json({ success: true, message: 'Lease deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting lease:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

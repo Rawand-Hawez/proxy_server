@@ -1680,6 +1680,7 @@ class DatabaseService {
         status TEXT NOT NULL DEFAULT 'active',
         rent_currency TEXT,
         rent_amount REAL,
+        service_charge_amount REAL,
         raw_period_text TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1705,6 +1706,23 @@ class DatabaseService {
       `);
     } catch (error) {
       console.error('Error creating leases trigger:', error);
+    }
+
+    // Add service_charge_amount column if it doesn't exist (migration)
+    try {
+      await this.runQuery(`
+        SELECT service_charge_amount FROM leases LIMIT 1
+      `);
+    } catch (error) {
+      // Column doesn't exist, add it
+      try {
+        await this.runQuery(`
+          ALTER TABLE leases ADD COLUMN service_charge_amount REAL
+        `);
+        console.log('Added service_charge_amount column to leases table');
+      } catch (alterError) {
+        console.error('Error adding service_charge_amount column:', alterError);
+      }
     }
 
     // Create indexes for performance
@@ -2166,8 +2184,8 @@ class DatabaseService {
 
       // Create lease
       const result = await this.runQuery(
-        `INSERT INTO leases (unit_id, tenant_id, start_date, end_date, status, rent_currency, rent_amount, raw_period_text)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO leases (unit_id, tenant_id, start_date, end_date, status, rent_currency, rent_amount, service_charge_amount, raw_period_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           leaseData.unit_id || leaseData.unitId,
           leaseData.tenant_id || leaseData.tenantId,
@@ -2176,6 +2194,7 @@ class DatabaseService {
           leaseData.status || 'active',
           leaseData.rent_currency || leaseData.rentCurrency || null,
           leaseData.rent_amount || leaseData.rentAmount || null,
+          leaseData.service_charge_amount || leaseData.serviceChargeAmount || null,
           leaseData.raw_period_text || leaseData.rawPeriodText || null
         ]
       );
@@ -2206,6 +2225,7 @@ class DatabaseService {
           status = ?,
           rent_currency = ?,
           rent_amount = ?,
+          service_charge_amount = ?,
           raw_period_text = ?
          WHERE id = ?`,
         [
@@ -2214,6 +2234,7 @@ class DatabaseService {
           leaseData.status || 'active',
           leaseData.rent_currency || leaseData.rentCurrency || null,
           leaseData.rent_amount || leaseData.rentAmount || null,
+          leaseData.service_charge_amount || leaseData.serviceChargeAmount || null,
           leaseData.raw_period_text || leaseData.rawPeriodText || null,
           id
         ]
