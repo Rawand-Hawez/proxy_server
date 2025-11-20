@@ -281,7 +281,8 @@ const buildApiIndexResponse = () => ({
     json_format: '/?format=json',
     climate_api: '/admin/climate',
     marketing_api: '/api/marketing/projects',
-    mli_operations: '/admin/mli-ops'
+    mli_operations: '/admin/mli-ops',
+    property_management: '/api/property/buildings'
   },
   endpoints: {
     topcare: {
@@ -300,14 +301,31 @@ const buildApiIndexResponse = () => ({
       dateRange: '/extract/date-range?location={site}'
     },
     climate: {
-      list: '/api/climate/projects',
+      projects: {
+        list: '/api/climate/projects',
+        get: '/api/climate/projects/:id',
+        create: 'POST /api/climate/projects',
+        update: 'PUT /api/climate/projects/:id',
+        delete: 'DELETE /api/climate/projects/:id'
+      },
       stats: '/api/climate/stats',
       admin: '/admin/climate'
     },
     marketing: {
-      projects: '/api/marketing/projects',
-      metrics: '/api/marketing/:projectKey/metrics',
-      data: '/api/marketing/:projectKey/data',
+      projects: {
+        list: '/api/marketing/projects',
+        create: 'POST /api/marketing/projects',
+        get: '/api/marketing/projects/:projectKey'
+      },
+      metrics: {
+        list: '/api/marketing/:projectKey/metrics',
+        create: 'POST /api/marketing/:projectKey/metrics'
+      },
+      data: {
+        list: '/api/marketing/:projectKey/data',
+        bulkCreate: 'POST /api/marketing/:projectKey/data/bulk',
+        delete: 'DELETE /api/marketing/:projectKey/data'
+      },
       stats: '/api/marketing/:projectKey/stats'
     },
     mliOperations: {
@@ -315,7 +333,8 @@ const buildApiIndexResponse = () => ({
         list: '/api/mli-ops/programs',
         create: 'POST /api/mli-ops/programs',
         update: 'PUT /api/mli-ops/programs/:id',
-        delete: 'DELETE /api/mli-ops/programs/:id'
+        delete: 'DELETE /api/mli-ops/programs/:id',
+        deleteAll: 'DELETE /api/mli-ops/programs'
       },
       trainers: {
         list: '/api/mli-ops/trainers',
@@ -348,20 +367,83 @@ const buildApiIndexResponse = () => ({
       admin: '/admin/mli-ops',
       docs: '/public/mli-ops-admin.html'
     },
+    propertyManagement: {
+      buildings: {
+        list: '/api/property/buildings',
+        get: '/api/property/buildings/:id',
+        create: 'POST /api/property/buildings',
+        update: 'PUT /api/property/buildings/:id',
+        floors: '/api/property/buildings/:id/floors',
+        units: '/api/property/buildings/:id/units'
+      },
+      floors: {
+        get: '/api/property/floors/:id',
+        create: 'POST /api/property/floors',
+        update: 'PUT /api/property/floors/:id',
+        units: '/api/property/floors/:id/units'
+      },
+      units: {
+        get: '/api/property/units/:id',
+        create: 'POST /api/property/units',
+        update: 'PUT /api/property/units/:id',
+        delete: 'DELETE /api/property/units/:id',
+        leases: '/api/property/units/:id/leases'
+      },
+      tenants: {
+        list: '/api/property/tenants',
+        get: '/api/property/tenants/:id',
+        create: 'POST /api/property/tenants',
+        update: 'PUT /api/property/tenants/:id'
+      },
+      leases: {
+        get: '/api/property/leases/:id',
+        create: 'POST /api/property/leases',
+        update: 'PUT /api/property/leases/:id',
+        terminate: 'POST /api/property/leases/:id/terminate',
+        delete: 'DELETE /api/property/leases/:id'
+      },
+      reports: {
+        vacancy: '/api/property/reports/vacancy',
+        expiring: '/api/property/reports/expiring?days=30'
+      }
+    },
     odoo: odooService ? {
       partners: '/odoo/partners',
       sale_orders: '/odoo/sale_orders',
       invoices: '/odoo/invoices',
-      pos_orders: '/odoo/pos_orders',
-      pos_payments: '/odoo/pos_payments',
-      pos_summary: '/odoo/pos_summary',
-      inventory: '/odoo/inventory/summary'
+      pos: {
+        orders: '/odoo/pos_orders',
+        payments: '/odoo/pos_payments',
+        summary: '/odoo/pos_summary',
+        orderItems: '/odoo/pos_order_items',
+        orderItemsById: '/odoo/pos_orders/:order_id/items'
+      },
+      inventory: {
+        stockLevels: '/odoo/inventory/stock_levels',
+        movements: '/odoo/inventory/movements',
+        pickings: '/odoo/inventory/pickings',
+        summary: '/odoo/inventory/summary'
+      },
+      dashboard: '/odoo/dashboard',
+      customModel: '/odoo/model/:modelName'
     } : 'Odoo not configured',
     admin: {
       status: '/admin/status',
-      cache: '/admin/cache/stats',
-      db: '/admin/db/custom-data',
-      web_interface: '/admin'
+      tokenValidate: '/admin/token-validate',
+      tokenInfo: '/admin/token-info',
+      cache: {
+        stats: '/admin/cache/stats',
+        clear: 'POST /admin/cache/clear',
+        health: '/admin/cache/health'
+      },
+      database: {
+        customData: '/admin/db/custom-data',
+        config: '/admin/db/config'
+      },
+      logs: '/admin/logs',
+      web_interface: '/admin',
+      climate_admin: '/admin/climate',
+      mli_ops_admin: '/admin/mli-ops'
     }
   }
 });
