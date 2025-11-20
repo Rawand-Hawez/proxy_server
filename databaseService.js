@@ -1663,6 +1663,7 @@ class DatabaseService {
       `CREATE TABLE IF NOT EXISTS tenants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
+        building_id INTEGER REFERENCES buildings(id),
         category TEXT,
         contact_name TEXT,
         contact_phone TEXT,
@@ -1725,12 +1726,29 @@ class DatabaseService {
       }
     }
 
+    // Add building_id to tenants if missing (migration)
+    try {
+      await this.runQuery(`
+        SELECT building_id FROM tenants LIMIT 1
+      `);
+    } catch (error) {
+      try {
+        await this.runQuery(`
+          ALTER TABLE tenants ADD COLUMN building_id INTEGER REFERENCES buildings(id)
+        `);
+        console.log('Added building_id column to tenants table');
+      } catch (alterError) {
+        console.error('Error adding building_id column:', alterError);
+      }
+    }
+
     // Create indexes for performance
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_floors_building_id ON floors(building_id)',
       'CREATE INDEX IF NOT EXISTS idx_units_building_id ON units(building_id)',
       'CREATE INDEX IF NOT EXISTS idx_units_floor_id ON units(floor_id)',
       'CREATE INDEX IF NOT EXISTS idx_units_status ON units(status)',
+      'CREATE INDEX IF NOT EXISTS idx_tenants_building_id ON tenants(building_id)',
       'CREATE INDEX IF NOT EXISTS idx_leases_unit_id ON leases(unit_id)',
       'CREATE INDEX IF NOT EXISTS idx_leases_tenant_id ON leases(tenant_id)',
       'CREATE INDEX IF NOT EXISTS idx_leases_status ON leases(status)'
@@ -2067,17 +2085,29 @@ class DatabaseService {
   // TENANTS
   // ==========================================
 
-  async getAllTenants(searchQuery = null) {
+  async getAllTenants(searchQuery = null, buildingId = null) {
     try {
-      if (searchQuery) {
-        return await this.allQuery(
-          `SELECT * FROM tenants
-           WHERE name LIKE ? OR contact_name LIKE ? OR contact_email LIKE ?
-           ORDER BY name`,
-          [`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`]
-        );
+      let query = 'SELECT * FROM tenants';
+      const params = [];
+      const whereClauses = [];
+
+      if (buildingId !== null && buildingId !== undefined) {
+        whereClauses.push('building_id = ?');
+        params.push(buildingId);
       }
-      return await this.allQuery('SELECT * FROM tenants ORDER BY name');
+
+      if (searchQuery) {
+        whereClauses.push('(name LIKE ? OR contact_name LIKE ? OR contact_email LIKE ?)');
+        params.push(`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`);
+      }
+
+      if (whereClauses.length > 0) {
+        query += ` WHERE ${whereClauses.join(' AND ')}`;
+      }
+
+      query += ' ORDER BY name';
+
+      return await this.allQuery(query, params);
     } catch (error) {
       console.error('Error fetching tenants:', error);
       throw error;
@@ -2096,10 +2126,11 @@ class DatabaseService {
   async createTenant(tenantData) {
     try {
       const result = await this.runQuery(
-        `INSERT INTO tenants (name, category, contact_name, contact_phone, contact_email, notes)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tenants (name, building_id, category, contact_name, contact_phone, contact_email, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           tenantData.name,
+          tenantData.building_id ?? tenantData.buildingId ?? null,
           tenantData.category || null,
           tenantData.contact_name || tenantData.contactName || null,
           tenantData.contact_phone || tenantData.contactPhone || null,
@@ -2119,6 +2150,7 @@ class DatabaseService {
       const result = await this.runQuery(
         `UPDATE tenants SET
           name = ?,
+          building_id = ?,
           category = ?,
           contact_name = ?,
           contact_phone = ?,
@@ -2127,6 +2159,7 @@ class DatabaseService {
          WHERE id = ?`,
         [
           tenantData.name,
+          tenantData.building_id ?? tenantData.buildingId ?? null,
           tenantData.category || null,
           tenantData.contact_name || tenantData.contactName || null,
           tenantData.contact_phone || tenantData.contactPhone || null,

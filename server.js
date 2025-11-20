@@ -2324,7 +2324,17 @@ app.get('/api/property/tenants', authenticateToken, async (req, res) => {
     }
 
     const searchQuery = req.query.q || null;
-    const tenants = await databaseService.getAllTenants(searchQuery);
+    const buildingFilter = req.query.buildingId ?? req.query.building_id;
+
+    let buildingId = null;
+    if (buildingFilter !== undefined) {
+      buildingId = parseInt(buildingFilter, 10);
+      if (Number.isNaN(buildingId)) {
+        return res.status(400).json({ success: false, error: 'Invalid building ID filter' });
+      }
+    }
+
+    const tenants = await databaseService.getAllTenants(searchQuery, buildingId);
     res.json({ success: true, count: tenants.length, data: tenants });
   } catch (error) {
     console.error('Error fetching tenants:', error);
@@ -2366,6 +2376,22 @@ app.post('/api/property/tenants', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Tenant name is required' });
     }
 
+    const buildingFilter = req.body.building_id ?? req.body.buildingId;
+    if (buildingFilter !== undefined && buildingFilter !== null) {
+      const buildingId = parseInt(buildingFilter, 10);
+      if (Number.isNaN(buildingId)) {
+        return res.status(400).json({ success: false, error: 'Invalid building ID' });
+      }
+
+      const building = await databaseService.getBuildingById(buildingId);
+      if (!building) {
+        return res.status(404).json({ success: false, error: 'Building not found' });
+      }
+
+      // Normalize the building_id field for downstream processing
+      req.body.building_id = buildingId;
+    }
+
     const tenantId = await databaseService.createTenant(req.body);
     const tenant = await databaseService.getTenantById(tenantId);
     res.status(201).json({ success: true, data: tenant });
@@ -2391,8 +2417,31 @@ app.put('/api/property/tenants/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Tenant not found' });
     }
 
+    let updatedBuildingId = existing.building_id;
+    if ('building_id' in req.body || 'buildingId' in req.body) {
+      const incomingBuilding = req.body.building_id ?? req.body.buildingId;
+
+      if (incomingBuilding === null) {
+        updatedBuildingId = null;
+      } else {
+        const parsedBuildingId = parseInt(incomingBuilding, 10);
+        if (Number.isNaN(parsedBuildingId)) {
+          return res.status(400).json({ success: false, error: 'Invalid building ID' });
+        }
+
+        const building = await databaseService.getBuildingById(parsedBuildingId);
+        if (!building) {
+          return res.status(404).json({ success: false, error: 'Building not found' });
+        }
+
+        updatedBuildingId = parsedBuildingId;
+      }
+
+      req.body.building_id = updatedBuildingId;
+    }
+
     // Merge existing data with updates
-    const updatedData = { ...existing, ...req.body };
+    const updatedData = { ...existing, ...req.body, building_id: updatedBuildingId };
     await databaseService.updateTenant(id, updatedData);
     const tenant = await databaseService.getTenantById(id);
     res.json({ success: true, data: tenant });
