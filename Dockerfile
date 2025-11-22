@@ -11,6 +11,12 @@ RUN npm install --production
 # Copy application code
 COPY *.js ./
 
+# Copy shell scripts
+COPY *.sh ./
+
+# Copy migrations directory
+COPY migrations/ ./migrations/
+
 # Copy docs directory for initial data import
 COPY docs/ ./docs/
 
