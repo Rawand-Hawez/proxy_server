@@ -9,7 +9,7 @@ class DatabaseService {
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
-    
+
     this.dbPath = dbPath;
     this.db = null;
     this.initialized = false;
@@ -41,7 +41,7 @@ class DatabaseService {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-      
+
       // Local data storage for custom entries
       `CREATE TABLE IF NOT EXISTS custom_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +50,7 @@ class DatabaseService {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-      
+
       // API logs for monitoring
       `CREATE TABLE IF NOT EXISTS api_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +61,7 @@ class DatabaseService {
         error_message TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-      
+
       // Configuration storage
       `CREATE TABLE IF NOT EXISTS app_config (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +71,7 @@ class DatabaseService {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-      
+
       // User sessions (for web interface)
       `CREATE TABLE IF NOT EXISTS user_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,7 +80,7 @@ class DatabaseService {
         expires_at DATETIME NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-      
+
       // Data sync logs
       `CREATE TABLE IF NOT EXISTS sync_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -186,7 +186,7 @@ class DatabaseService {
 
   runQuery(sql, params = []) {
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function(err) {
+      this.db.run(sql, params, function (err) {
         if (err) {
           reject(err);
         } else {
@@ -225,13 +225,13 @@ class DatabaseService {
     try {
       const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
       const dataStr = JSON.stringify(data);
-      
+
       await this.runQuery(
         `INSERT OR REPLACE INTO api_cache (endpoint, cache_key, data, expires_at, updated_at)
          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
         [endpoint, cacheKey, dataStr, expiresAt]
       );
-      
+
       console.log(`Cache set for ${endpoint}: ${cacheKey}`);
       return true;
     } catch (error) {
@@ -247,7 +247,7 @@ class DatabaseService {
          WHERE cache_key = ? AND (expires_at IS NULL OR expires_at > datetime('now'))`,
         [cacheKey]
       );
-      
+
       if (result) {
         return JSON.parse(result.data);
       }
@@ -296,7 +296,7 @@ class DatabaseService {
          LIMIT ? OFFSET ?`,
         [tableName, limit, offset]
       );
-      
+
       return records.map(record => ({
         id: record.id,
         tableName: record.table_name,
@@ -413,7 +413,7 @@ class DatabaseService {
     try {
       const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000).toISOString();
       const dataStr = JSON.stringify(userData || {});
-      
+
       await this.runQuery(
         `INSERT INTO user_sessions (session_id, user_data, expires_at)
          VALUES (?, ?, ?)`,
@@ -433,7 +433,7 @@ class DatabaseService {
          WHERE session_id = ? AND expires_at > datetime('now')`,
         [sessionId]
       );
-      
+
       if (result) {
         return {
           id: result.id,
@@ -467,15 +467,15 @@ class DatabaseService {
   async getDatabaseStats() {
     try {
       const stats = {};
-      
+
       // Count records in each table
       const tables = ['api_cache', 'custom_data', 'api_logs', 'app_config', 'user_sessions', 'sync_logs', 'climate_projects', 'marketing_projects', 'marketing_metrics', 'marketing_data'];
-      
+
       for (const table of tables) {
         const result = await this.getQuery(`SELECT COUNT(*) as count FROM ${table}`);
         stats[table] = result ? result.count : 0;
       }
-      
+
       // Get cache hit rate (simplified)
       const cacheStats = await this.getQuery(`
         SELECT 
@@ -483,10 +483,10 @@ class DatabaseService {
           SUM(CASE WHEN expires_at > datetime('now') THEN 1 ELSE 0 END) as active_cache_entries
         FROM api_cache
       `);
-      
-      stats.cache_hit_rate = cacheStats ? 
+
+      stats.cache_hit_rate = cacheStats ?
         ((cacheStats.active_cache_entries / cacheStats.total_cache_ops) * 100).toFixed(2) : 0;
-      
+
       return stats;
     } catch (error) {
       console.error('Error getting database stats:', error);
@@ -498,19 +498,19 @@ class DatabaseService {
   async cleanup() {
     try {
       await this.clearExpiredCache();
-      
+
       // Clean old logs (keep last 30 days)
       const result = await this.runQuery(
         `DELETE FROM api_logs WHERE created_at < datetime('now', '-30 days')`
       );
       console.log(`Cleaned ${result.changes} old log entries`);
-      
+
       // Clean expired sessions
       const sessionResult = await this.runQuery(
         `DELETE FROM user_sessions WHERE expires_at <= datetime('now')`
       );
       console.log(`Cleaned ${sessionResult.changes} expired sessions`);
-      
+
       return true;
     } catch (error) {
       console.error('Error during cleanup:', error);
@@ -1102,17 +1102,21 @@ class DatabaseService {
     const participantFee = toNumber(program.participant_fee);
     const nonMonetaryRevenue = toNumber(program.non_monetary_revenue);
 
+    const venueCost = toNumber(program.venue_cost);
+    const cateringCost = toNumber(program.catering_cost);
+    const materialsCost = toNumber(program.materials_cost);
+
     // Calculate cash_revenue
     const cashRevenue = program.cash_revenue !== undefined && program.cash_revenue !== null
       ? toNumber(program.cash_revenue)
       : (toNumber(program.total_revenue_input) ??
-         (participants && participantFee ? participants * participantFee : null));
+        (participants && participantFee ? participants * participantFee : null));
 
     // Calculate total_revenue
     const totalRevenue = program.total_revenue !== undefined && program.total_revenue !== null
       ? toNumber(program.total_revenue)
       : (toNumber(program.actual_revenue) ??
-         (((cashRevenue ?? 0) + (nonMonetaryRevenue ?? 0)) || null));
+        (((cashRevenue ?? 0) + (nonMonetaryRevenue ?? 0)) || null));
 
     let status = program.status;
     if (!status || status === 'auto') {
@@ -1145,7 +1149,10 @@ class DatabaseService {
       status,
       trimDate(program.start_date),
       trimDate(program.end_date),
-      program.notes || null
+      program.notes || null,
+      venueCost,
+      cateringCost,
+      materialsCost
     ];
 
     try {
@@ -1168,6 +1175,9 @@ class DatabaseService {
             start_date = ?,
             end_date = ?,
             notes = ?,
+            venue_cost = ?,
+            catering_cost = ?,
+            materials_cost = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `, [...payload, program.id]);
@@ -1179,8 +1189,9 @@ class DatabaseService {
           program, number_of_participants, male_participants, female_participants,
           cash_revenue, non_monetary_revenue, total_revenue, program_cost,
           avg_content_rating, avg_delivery_rating, avg_overall_rating,
-          participant_fee, status, start_date, end_date, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          participant_fee, status, start_date, end_date, notes,
+          venue_cost, catering_cost, materials_cost
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, payload);
       return result.id;
     } catch (error) {

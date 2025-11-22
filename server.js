@@ -493,6 +493,10 @@ const formatMliOpsProgram = (program) => {
 
   // Cost and profitability
   const programCost = toNumber(program.program_cost);
+  const venueCost = toNumber(program.venue_cost) || 0;
+  const cateringCost = toNumber(program.catering_cost) || 0;
+  const materialsCost = toNumber(program.materials_cost) || 0;
+
   const profit = totalRevenue !== null && programCost !== null ? totalRevenue - programCost : null;
   const profitMargin = profit !== null && totalRevenue !== null && totalRevenue > 0
     ? (profit / totalRevenue) * 100
@@ -532,6 +536,9 @@ const formatMliOpsProgram = (program) => {
 
     // Cost and profitability
     program_cost: programCost,
+    venue_cost: venueCost,
+    catering_cost: cateringCost,
+    materials_cost: materialsCost,
     profit,
     profit_margin: profitMargin !== null ? Math.round(profitMargin * 100) / 100 : null,
 
@@ -2846,10 +2853,10 @@ const getDateRange = (req) => {
 app.get('/odoo/partners', checkOdooConfigured, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
-    
+
     // Generate cache key
     const cacheKey = cacheService?.generateCacheKey('/odoo/partners', { limit });
-    
+
     // Try to get from cache
     if (cacheService) {
       const cached = await cacheService.get(cacheKey);
@@ -2862,10 +2869,10 @@ app.get('/odoo/partners', checkOdooConfigured, async (req, res) => {
         });
       }
     }
-    
+
     // Fetch from Odoo
     const partners = await odooService.getPartners(limit);
-    
+
     // Store in cache (1 hour TTL)
     if (cacheService) {
       await cacheService.set(cacheKey, partners, 3600);
@@ -2894,7 +2901,7 @@ app.get('/odoo/sale_orders', checkOdooConfigured, async (req, res) => {
 
     // Generate cache key
     const cacheKey = cacheService?.generateCacheKey('/odoo/sale_orders', { limit, start, end });
-    
+
     // Try to get from cache
     if (cacheService) {
       const cached = await cacheService.get(cacheKey);
@@ -2911,7 +2918,7 @@ app.get('/odoo/sale_orders', checkOdooConfigured, async (req, res) => {
 
     // Fetch from Odoo
     const orders = await odooService.getSaleOrders(limit, start, end);
-    
+
     // Store in cache (30 minutes TTL for time-sensitive data)
     if (cacheService) {
       await cacheService.set(cacheKey, orders, 1800);
@@ -2941,7 +2948,7 @@ app.get('/odoo/invoices', checkOdooConfigured, async (req, res) => {
 
     // Generate cache key
     const cacheKey = cacheService?.generateCacheKey('/odoo/invoices', { limit, start, end });
-    
+
     // Try to get from cache
     if (cacheService) {
       const cached = await cacheService.get(cacheKey);
@@ -2958,7 +2965,7 @@ app.get('/odoo/invoices', checkOdooConfigured, async (req, res) => {
 
     // Fetch from Odoo
     const invoices = await odooService.getInvoices(limit, start, end);
-    
+
     // Store in cache (30 minutes TTL)
     if (cacheService) {
       await cacheService.set(cacheKey, invoices, 1800);
@@ -2988,7 +2995,7 @@ app.get('/odoo/pos_orders', checkOdooConfigured, async (req, res) => {
 
     // Generate cache key
     const cacheKey = cacheService?.generateCacheKey('/odoo/pos_orders', { limit, start, end });
-    
+
     // Try to get from cache
     if (cacheService) {
       const cached = await cacheService.get(cacheKey);
@@ -3005,7 +3012,7 @@ app.get('/odoo/pos_orders', checkOdooConfigured, async (req, res) => {
 
     // Fetch from Odoo
     const orders = await odooService.getPosOrders(limit, start, end);
-    
+
     // Store in cache (15 minutes TTL for POS data)
     if (cacheService) {
       await cacheService.set(cacheKey, orders, 900);
@@ -3035,7 +3042,7 @@ app.get('/odoo/pos_payments', checkOdooConfigured, async (req, res) => {
 
     // Generate cache key
     const cacheKey = cacheService?.generateCacheKey('/odoo/pos_payments', { limit, start, end });
-    
+
     // Try to get from cache
     if (cacheService) {
       const cached = await cacheService.get(cacheKey);
@@ -3052,7 +3059,7 @@ app.get('/odoo/pos_payments', checkOdooConfigured, async (req, res) => {
 
     // Fetch from Odoo
     const payments = await odooService.getPosPayments(limit, start, end);
-    
+
     // Store in cache (15 minutes TTL)
     if (cacheService) {
       await cacheService.set(cacheKey, payments, 900);
@@ -3078,10 +3085,10 @@ app.get('/odoo/pos_payments', checkOdooConfigured, async (req, res) => {
 app.get('/odoo/pos_summary', checkOdooConfigured, async (req, res) => {
   try {
     const { start, end } = getDateRange(req);
-    
+
     // Generate cache key
     const cacheKey = cacheService?.generateCacheKey('/odoo/pos_summary', { start, end });
-    
+
     // Try to get from cache
     if (cacheService) {
       const cached = await cacheService.get(cacheKey);
@@ -3092,10 +3099,10 @@ app.get('/odoo/pos_summary', checkOdooConfigured, async (req, res) => {
         });
       }
     }
-    
+
     // Fetch from Odoo
     const summary = await odooService.getPosSummary(start, end);
-    
+
     // Store in cache (10 minutes TTL for summary data)
     if (cacheService) {
       await cacheService.set(cacheKey, summary, 600);
@@ -3181,10 +3188,10 @@ app.get('/odoo/pos_orders/:order_id/items', checkOdooConfigured, async (req, res
 app.get('/odoo/inventory/stock_levels', checkOdooConfigured, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
-    
+
     // Generate cache key
     const cacheKey = cacheService?.generateCacheKey('/odoo/inventory/stock_levels', { limit });
-    
+
     // Try to get from cache
     if (cacheService) {
       const cached = await cacheService.get(cacheKey);
@@ -3197,10 +3204,10 @@ app.get('/odoo/inventory/stock_levels', checkOdooConfigured, async (req, res) =>
         });
       }
     }
-    
+
     // Fetch from Odoo
     const stockLevels = await odooService.getStockLevels(limit);
-    
+
     // Store in cache (5 minutes TTL for inventory data)
     if (cacheService) {
       await cacheService.set(cacheKey, stockLevels, 300);
@@ -3289,7 +3296,7 @@ app.get('/odoo/dashboard', checkOdooConfigured, async (req, res) => {
   try {
     // Generate cache key
     const cacheKey = cacheService?.generateCacheKey('/odoo/dashboard', {});
-    
+
     // Try to get from cache
     if (cacheService) {
       const cached = await cacheService.get(cacheKey);
@@ -3300,15 +3307,15 @@ app.get('/odoo/dashboard', checkOdooConfigured, async (req, res) => {
         });
       }
     }
-    
+
     // Fetch from Odoo
     const dashboard = await odooService.getDashboard();
-    
+
     // Store in cache (5 minutes TTL for dashboard)
     if (cacheService) {
       await cacheService.set(cacheKey, dashboard, 300);
     }
-    
+
     res.json({
       ...dashboard,
       cached: false
@@ -3357,7 +3364,7 @@ app.get('/odoo/model/:modelName', checkOdooConfigured, async (req, res) => {
 app.get('/admin/token-validate', (req, res) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  
+
   res.json({
     valid: token === ADMIN_TOKEN,
     token_provided: !!token,
@@ -3594,7 +3601,7 @@ app.post('/admin/cache/clear', async (req, res) => {
 
     const { pattern } = req.body;
     const cleared = await cacheService.clearPattern(pattern || '*');
-    
+
     res.json({
       success: true,
       cleared_entries: cleared,
@@ -3840,7 +3847,7 @@ async function startServer() {
     const services = await initializeServices();
     databaseService = services.databaseService;
     cacheService = services.cacheService;
-    
+
     // Update health check endpoint to include service status
     app.get('/', sendApiIndex);
 
