@@ -11,14 +11,11 @@ RUN npm install --production
 # Copy application code
 COPY *.js ./
 
-# Copy shell scripts
-COPY *.sh ./
-
 # Copy migrations directory
 COPY migrations/ ./migrations/
 
-# Copy docs directory for initial data import
-COPY docs/ ./docs/
+# Copy public directory for admin interfaces
+COPY public/ ./public/
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data

@@ -40,3 +40,8 @@ data/proxy_server_backup_*.db
 
 # Migration summaries (keep only API docs and deployment docs)
 *.md
+!CLAUDE.md
+!README.md
+
+# Archived development files
+_archived/
